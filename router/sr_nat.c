@@ -35,6 +35,27 @@ int sr_nat_destroy(struct sr_nat *nat) {  /* Destroys the nat (free memory) */
   pthread_mutex_lock(&(nat->lock));
 
   /* free nat memory here */
+  struct sr_nat_mapping *cur_mapping = nat->mappings;
+  struct sr_nat_mapping *next_mapping;
+  while(cur_mapping)
+  {
+    /*Save next mapping so we don't lose it*/
+    next_mapping = cur_mapping->next;
+
+    /*Free all connections*/
+    struct sr_nat_connection *cur_conn = cur_mapping->conns;
+    struct sr_nat_connection *next_conn;
+    while(cur_conn)
+    {
+      next_conn = cur_conn->next;
+      free(cur_conn);
+      cur_conn = next_conn;
+    }
+
+    /*Free current mapping*/
+    free(cur_mapping);
+    cur_mapping = next_mapping;
+  }
 
   pthread_kill(nat->thread, SIGKILL);
   return pthread_mutex_destroy(&(nat->lock)) &&
