@@ -114,6 +114,35 @@ struct sr_icmp_hdr {
 typedef struct sr_icmp_hdr sr_icmp_hdr_t;
 
 
+/* Structure of generic ICMP header for use in assignment */
+struct sr_tcp_hdr {
+  uint16_t tcp_src, tcp_dst;    /*source and dest port number*/
+  uint32_t tcp_seq;             /*Sequence number*/
+  uint32_t tcp_ack;             /*Acknowledgement number*/
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+  unsigned int tcp_res:4;		/* header length */
+  unsigned int tcp_off:4;		/* version */
+#elif __BYTE_ORDER == __BIG_ENDIAN
+  unsigned int ip_off:4;		/* version */
+  unsigned int ip_res:4;		/* header length */
+#endif
+  uint8_t tcp_flags;
+#define TCP_FIN 0x01
+#define TCP_SYN 0x02
+#define TCP_RST 0x04
+#define TCP_PSH 0x08
+#define TCP_ACK 0x10
+#define TCP_URG 0x20
+#define TCP_ECE 0x40
+#define TCP_CWR 0x80
+  uint16_t tcp_win;
+  uint16_t tcp_sum;
+  uint16_t tcp_urg;
+  
+} __attribute__ ((packed)) ;
+typedef struct sr_tcp_hdr sr_tcp_hdr_t;
+
+
 /*
  * Structure of an internet header, naked of options.
  */
