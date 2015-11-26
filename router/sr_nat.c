@@ -36,7 +36,7 @@ int sr_nat_destroy(struct sr_nat *nat) {  /* Destroys the nat (free memory) */
 
   /* free nat memory here */
   struct sr_nat_mapping *cur_mapping = nat->mappings;
-  struct sr_nat_mapping *next_mapping;
+  struct sr_nat_mapping *next_mapping = NULL;
   while(cur_mapping)
   {
     /*Save next mapping so we don't lose it*/
@@ -44,7 +44,7 @@ int sr_nat_destroy(struct sr_nat *nat) {  /* Destroys the nat (free memory) */
 
     /*Free all connections*/
     struct sr_nat_connection *cur_conn = cur_mapping->conns;
-    struct sr_nat_connection *next_conn;
+    struct sr_nat_connection *next_conn = NULL;
     while(cur_conn)
     {
       next_conn = cur_conn->next;
@@ -88,6 +88,19 @@ struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
   /* handle lookup here, malloc and assign to copy */
   struct sr_nat_mapping *copy = NULL;
 
+  struct sr_nat_mapping *mapping = nat->mappings;
+  while(mapping)
+  {
+    if(mapping->aux_ext == aux_ext && mapping->type == type)
+    {
+      copy = malloc(sizeof(sr_nat_mapping));
+      memcpy(copy, mapping, sizeof(sr_nat_mapping));
+
+      pthread_mutex_unlock(&(nat->lock));
+      return copy;
+    }
+  }
+
   pthread_mutex_unlock(&(nat->lock));
   return copy;
 }
@@ -101,6 +114,19 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
 
   /* handle lookup here, malloc and assign to copy. */
   struct sr_nat_mapping *copy = NULL;
+
+  struct sr_nat_mapping *mapping = nat->mappings;
+  while(mapping)
+  {
+    if(mapping->aux_int == aux_int && mapping->type == type && mapping->ip_int == ip_int)
+    {
+      copy = malloc(sizeof(sr_nat_mapping));
+      memcpy(copy, mapping, sizeof(sr_nat_mapping));
+
+      pthread_mutex_unlock(&(nat->lock));
+      return copy;
+    }
+  }
 
   pthread_mutex_unlock(&(nat->lock));
   return copy;
