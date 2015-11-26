@@ -44,6 +44,9 @@ extern char* optarg;
 #define DEFAULT_SERVER "localhost"
 #define DEFAULT_RTABLE "rtable"
 #define DEFAULT_TOPO 0
+#define DEFAULT_ICMP_TIMEOUT 60
+#define DEFAULT_TCP_EST_TIMEOUT 7440
+#define DEFAULT_TCP_TRAN_TIMEOUT 300
 
 static void usage(char* );
 static void sr_init_instance(struct sr_instance* );
@@ -64,12 +67,15 @@ int main(int argc, char **argv)
     char *template = NULL;
     unsigned int port = DEFAULT_PORT;
     unsigned int topo = DEFAULT_TOPO;
+    unsigned int icmp_timeout = DEFAULT_ICMP_TIMEOUT;
+    unsigned int tcp_est_timeout = DEFAULT_TCP_EST_TIMEOUT;
+    unsigned int tcp_tran_timeout = DEFAULT_TCP_TRAN_TIMEOUT;
     char *logfile = 0;
     struct sr_instance sr;
 
     printf("Using %s\n", VERSION_INFO);
 
-    while ((c = getopt(argc, argv, "hs:v:p:u:t:r:l:T:")) != EOF)
+    while ((c = getopt(argc, argv, "hs:v:p:u:t:r:l:T:n:I:R:E")) != EOF)
     {
         switch (c)
         {
@@ -100,6 +106,17 @@ int main(int argc, char **argv)
                 break;
             case 'T':
                 template = optarg;
+                break;
+            case 'n':
+                break;
+            case 'I':
+                icmp_timeout = optarg;
+                break;
+            case 'R':
+                tcp_tran_timeout = optarg;
+                break;
+            case 'E':
+                tcp_est_timeout = optarg;
                 break;
         } /* switch */
     } /* -- while -- */
