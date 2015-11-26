@@ -93,8 +93,8 @@ struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
   {
     if(mapping->aux_ext == aux_ext && mapping->type == type)
     {
-      copy = malloc(sizeof(sr_nat_mapping));
-      memcpy(copy, mapping, sizeof(sr_nat_mapping));
+      copy = malloc(sizeof(struct sr_nat_mapping));
+      memcpy(copy, mapping, sizeof(struct sr_nat_mapping));
 
       pthread_mutex_unlock(&(nat->lock));
       return copy;
@@ -120,8 +120,8 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
   {
     if(mapping->aux_int == aux_int && mapping->type == type && mapping->ip_int == ip_int)
     {
-      copy = malloc(sizeof(sr_nat_mapping));
-      memcpy(copy, mapping, sizeof(sr_nat_mapping));
+      copy = malloc(sizeof(struct sr_nat_mapping));
+      memcpy(copy, mapping, sizeof(struct sr_nat_mapping));
 
       pthread_mutex_unlock(&(nat->lock));
       return copy;
@@ -136,13 +136,27 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
    Actually returns a copy to the new mapping, for thread safety.
  */
 struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
-  uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type ) {
+  uint32_t ip_int, uint16_t aux_int, uint32_t ip_ext, uint16_t aux_ext,
+  sr_nat_mapping_type type ) {
 
   pthread_mutex_lock(&(nat->lock));
 
   /* handle insert here, create a mapping, and then return a copy of it */
-  struct sr_nat_mapping *mapping = NULL;
+  struct sr_nat_mapping *mapping = malloc(sizeof(struct sr_nat_mapping));
+  struct sr_nat_mapping *copy_mapping = malloc(sizeof(struct sr_nat_mapping));
+  mapping->type = type;
+  mapping->ip_int = ip_int; /* internal ip addr */
+  mapping->ip_ext = ip_ext; /* external ip addr */
+  mapping->aux_int = aux_int; /* internal port or icmp id */
+  mapping->aux_ext = aux_ext; /* external port or icmp id */
+  mapping->last_updated = time(NULL); /* use to timeout mappings */
+  mapping->conns = NULL; /* list of connections. null for ICMP */
+
+  mapping->next = nat->mappings;
+  nat->mappings = mapping;
+
+  memcpy(copy_mapping, mapping, sizeof(struct sr_nat_mapping));
 
   pthread_mutex_unlock(&(nat->lock));
-  return mapping;
+  return copy_mapping;
 }
