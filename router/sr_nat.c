@@ -4,8 +4,9 @@
 #include "sr_nat.h"
 #include <unistd.h>
 
-int sr_nat_init(struct sr_nat *nat) { /* Initializes the nat */
-
+/* Initializes the nat */
+int sr_nat_init(struct sr_nat *nat)
+{
   assert(nat);
 
   /* Acquire mutex lock */
@@ -29,9 +30,9 @@ int sr_nat_init(struct sr_nat *nat) { /* Initializes the nat */
   return success;
 }
 
-
-int sr_nat_destroy(struct sr_nat *nat) {  /* Destroys the nat (free memory) */
-
+/* Destroys the nat (free memory) */
+int sr_nat_destroy(struct sr_nat *nat)
+{
   pthread_mutex_lock(&(nat->lock));
 
   /* free nat memory here */
@@ -63,7 +64,9 @@ int sr_nat_destroy(struct sr_nat *nat) {  /* Destroys the nat (free memory) */
 
 }
 
-void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
+/* Periodic Timout handling */
+void *sr_nat_timeout(void *nat_ptr)
+{
   struct sr_nat *nat = (struct sr_nat *)nat_ptr;
   while (1) {
     sleep(1.0);
@@ -81,8 +84,8 @@ void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
 /* Get the mapping associated with given external port.
    You must free the returned structure if it is not NULL. */
 struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
-    uint16_t aux_ext, sr_nat_mapping_type type ) {
-
+    uint16_t aux_ext, sr_nat_mapping_type type )
+{
   pthread_mutex_lock(&(nat->lock));
 
   /* handle lookup here, malloc and assign to copy */
@@ -108,8 +111,8 @@ struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
 /* Get the mapping associated with given internal (ip, port) pair.
    You must free the returned structure if it is not NULL. */
 struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
-  uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type ) {
-
+  uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type )
+{
   pthread_mutex_lock(&(nat->lock));
 
   /* handle lookup here, malloc and assign to copy. */
@@ -136,8 +139,8 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
    Actually returns a copy to the new mapping, for thread safety.
  */
 struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
-  uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type ) {
-
+  uint32_t ip_int, uint32_t ip_ext, uint16_t aux_int, sr_nat_mapping_type type )
+{
   pthread_mutex_lock(&(nat->lock));
 
   /* handle insert here, create a mapping, and then return a copy of it */
@@ -145,17 +148,61 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   struct sr_nat_mapping *copy_mapping = malloc(sizeof(struct sr_nat_mapping));
   mapping->type = type;
   mapping->ip_int = ip_int; /* internal ip addr */
-  mapping->ip_ext; /* GET EXTERNAL IP */
+  mapping->ip_ext = ip_ext; /* external ip addr */
   mapping->aux_int = aux_int; /* internal port or icmp id */
-  mapping->aux_ext; /* GET NEW EXTERNAL PORT/ICMP ID */
+  mapping->aux_ext = get_available_port(nat); /* GET NEW EXTERNAL PORT/ICMP ID */
   mapping->last_updated = time(NULL); /* use to timeout mappings */
   mapping->conns = NULL; /* list of connections. null for ICMP */
 
-  mapping->next = nat->mappings;
-  nat->mappings = mapping;
+  insert_mapping(nat, mapping);
 
   memcpy(copy_mapping, mapping, sizeof(struct sr_nat_mapping));
 
   pthread_mutex_unlock(&(nat->lock));
   return copy_mapping;
+}
+
+/************************************************************************
+**  get_available_port()
+**
+**    Returns an unused port number
+************************************************************************/
+uint16_t get_available_port(struct sr_nat *nat)
+{
+  if(nat->mappings == NULL || MIN_PORT_NUMBER < nat->mappings->aux_ext)
+  {
+    return (uint16_t)MIN_PORT_NUMBER;
+  }
+  else
+  {
+    struct sr_nat_mapping *curr = nat->mappings;
+
+    while (curr->next != NULL && curr->next->aux_ext - curr->aux_ext == 1)
+    {
+      curr = curr->next;
+    }
+
+    return curr->aux_ext + 1;
+  }
+}
+
+void insert_mapping(struct sr_nat *nat, struct sr_nat_mapping *mapping)
+{
+  if(mapping->aux_ext < nat->mappings->aux_ext)
+  {
+    mapping->next = nat->mappings;
+    nat->mappings = mapping;
+  }
+  else
+  {
+    struct sr_nat_mapping *curr = nat->mappings;
+
+    while(curr->next != NULL && curr->next->aux_ext < mapping->aux_ext)
+    {
+      curr = curr->next;
+    }
+
+    mapping->next = curr->next;
+    curr->next = mapping;
+  }
 }
