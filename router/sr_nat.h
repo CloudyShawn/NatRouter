@@ -11,12 +11,30 @@
 
 typedef enum {
   nat_mapping_icmp,
-  nat_mapping_tcp
-  /* nat_mapping_udp, */
+  nat_mapping_tcp,
+  nat_mapping_udp
 } sr_nat_mapping_type;
+
+typedef enum
+{
+  state_closed,
+  state_listen,
+  state_syn_sent,
+  state_syn_rcvd,
+  state_estab,
+  state_fin_wait_1,
+  state_fin_wait_2,
+  state_closing,
+  state_close_wait,
+  state_last_ack,
+  state_time_wait,
+  state_closed
+} sr_tcp_conn_state;
 
 struct sr_nat_connection {
   /* add TCP connection state data members here */
+  sr_tcp_conn_state state;
+  time_t last_updated;
 
   struct sr_nat_connection *next;
 };

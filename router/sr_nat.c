@@ -79,6 +79,103 @@ void *sr_nat_timeout(void *nat_ptr)
     time_t curtime = time(NULL);
 
     /* handle periodic tasks here */
+    struct sr_nat_mapping *prev = NULL;
+    struct sr_nat_mapping *curr = nat->mappings;
+    struct sr_nat_mapping *next;
+    while(curr)
+    {
+      next = curr->next;
+      if(curr->type == nat_mapping_icmp)
+      {
+        if (difftime(time(NULL), curr->last_updated) >= nat->icmp_timeout)
+        {
+          if(prev == NULL)
+          {
+            nat->mappings = next;
+          }
+          else
+          {
+            prev->next = next;
+          }
+
+          free(curr);
+          curr = next;
+        }
+        else
+        {
+          prev = curr;
+          curr = next;
+        }
+      }
+      else
+      {
+        struct sr_nat_connection *prev_conn = NULL;
+        struct sr_nat_connection *curr_conn = curr->conns;
+        struct sr_nat_connection *next_conn;
+
+        while(curr_conn)
+        {
+          next_conn = curr_conn->next;
+
+          if(curr_conn->state == state_estab)
+          {
+            if(difftime(time(NULL), curr_conn->last_updated) >= nat->tcp_est_timeout)
+            {
+              if(prev == NULL)
+              {
+                curr->conns = next_conn;
+              }
+              else
+              {
+                prev_conn->next = next_conn;
+              }
+
+              free(curr_conn);
+              curr_conn = next_conn;
+            }
+            else
+            {
+              prev_conn = curr_conn;
+              curr_conn = next_conn;
+            }
+          }
+          else if(difftime(time(NULL), curr_conn->last_updated) >= nat->tcp_tran_timeout)
+          {
+            if(prev == NULL)
+            {
+              curr->conns = next_conn;
+            }
+            else
+            {
+              prev_conn->next = next_conn;
+            }
+
+            free(curr_conn);
+            curr_conn = next_conn;
+          }
+          else
+          {
+            prev_conn = curr_conn;
+            curr_conn = next_conn;
+          }
+        }
+
+        if(curr->conns == NULL)
+        {
+          if(prev == NULL)
+          {
+            nat->mappins = next;
+          }
+          else
+          {
+            prev = next;
+          }
+
+          free(curr);
+          curr = next;
+        }
+      }
+    }
 
     pthread_mutex_unlock(&(nat->lock));
   }
