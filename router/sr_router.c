@@ -31,7 +31,7 @@
  *
  *---------------------------------------------------------------------*/
 
-void sr_init(struct sr_instance* sr, bool nat_enabled, unsigned int icmp_timeout,
+void sr_init(struct sr_instance* sr, int nat_enabled, unsigned int icmp_timeout,
              unsigned int tcp_tran_timeout, unsigned int tcp_est_timeout)
 {
     /* REQUIRES */
@@ -49,7 +49,7 @@ void sr_init(struct sr_instance* sr, bool nat_enabled, unsigned int icmp_timeout
     pthread_create(&thread, &(sr->attr), sr_arpcache_timeout, sr);
 
     /* Add initialization code here! */
-    if(nat_enabled)
+    if(nat_enabled == 1)
     {
       sr_nat_init(&sr->nat, icmp_timeout, tcp_tran_timeout, tcp_est_timeout);
     }

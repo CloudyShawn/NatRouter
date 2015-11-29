@@ -67,7 +67,7 @@ int sr_connect_to_server(struct sr_instance* ,unsigned short , char* );
 int sr_read_from_server(struct sr_instance* );
 
 /* -- sr_router.c -- */
-void sr_init(struct sr_instance* sr, bool nat_enabled, unsigned int icmp_timeout,
+void sr_init(struct sr_instance* sr, int nat_enabled, unsigned int icmp_timeout,
              unsigned int tcp_tran_timeout, unsigned int tcp_est_timeout)
 void sr_handlepacket(struct sr_instance* , uint8_t * , unsigned int , char* );
 void sr_handle_arp_packet(struct sr_instance* , uint8_t * , unsigned int , char* );
