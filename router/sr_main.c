@@ -113,13 +113,13 @@ int main(int argc, char **argv)
                 nat_enabled = 1;
                 break;
             case 'I':
-                icmp_timeout = optarg;
+                icmp_timeout = atoi((char *)optarg);
                 break;
             case 'R':
-                tcp_tran_timeout = optarg;
+                tcp_tran_timeout = atoi((char *)optarg);
                 break;
             case 'E':
-                tcp_est_timeout = optarg;
+                tcp_est_timeout = atoi((char *)optarg);
                 break;
         } /* switch */
     } /* -- while -- */

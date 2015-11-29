@@ -1,4 +1,6 @@
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <signal.h>
 #include <assert.h>
 #include "sr_nat.h"
@@ -87,7 +89,7 @@ void *sr_nat_timeout(void *nat_ptr)
       next = curr->next;
       if(curr->type == nat_mapping_icmp)
       {
-        if (difftime(time(NULL), curr->last_updated) >= nat->icmp_timeout)
+        if (difftime(curtime, curr->last_updated) >= nat->icmp_timeout)
         {
           if(prev == NULL)
           {
@@ -119,7 +121,7 @@ void *sr_nat_timeout(void *nat_ptr)
 
           if(curr_conn->state == state_estab)
           {
-            if(difftime(time(NULL), curr_conn->last_updated) >= nat->tcp_est_timeout)
+            if(difftime(curtime, curr_conn->last_updated) >= nat->tcp_est_timeout)
             {
               if(prev == NULL)
               {
@@ -139,7 +141,7 @@ void *sr_nat_timeout(void *nat_ptr)
               curr_conn = next_conn;
             }
           }
-          else if(difftime(time(NULL), curr_conn->last_updated) >= nat->tcp_tran_timeout)
+          else if(difftime(curtime, curr_conn->last_updated) >= nat->tcp_tran_timeout)
           {
             if(prev == NULL)
             {
@@ -164,7 +166,7 @@ void *sr_nat_timeout(void *nat_ptr)
         {
           if(prev == NULL)
           {
-            nat->mappins = next;
+            nat->mappings = next;
           }
           else
           {
