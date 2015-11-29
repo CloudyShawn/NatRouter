@@ -17,7 +17,6 @@ typedef enum {
 
 typedef enum
 {
-  state_closed,
   state_listen,
   state_syn_sent,
   state_syn_rcvd,
