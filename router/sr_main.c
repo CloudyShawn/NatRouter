@@ -44,6 +44,7 @@ extern char* optarg;
 #define DEFAULT_SERVER "localhost"
 #define DEFAULT_RTABLE "rtable"
 #define DEFAULT_TOPO 0
+#define DEFAULT_NAT false
 #define DEFAULT_ICMP_TIMEOUT 60
 #define DEFAULT_TCP_EST_TIMEOUT 7440
 #define DEFAULT_TCP_TRAN_TIMEOUT 300
@@ -67,6 +68,7 @@ int main(int argc, char **argv)
     char *template = NULL;
     unsigned int port = DEFAULT_PORT;
     unsigned int topo = DEFAULT_TOPO;
+    bool nat_enabled = DEFAULT_NAT;
     unsigned int icmp_timeout = DEFAULT_ICMP_TIMEOUT;
     unsigned int tcp_est_timeout = DEFAULT_TCP_EST_TIMEOUT;
     unsigned int tcp_tran_timeout = DEFAULT_TCP_TRAN_TIMEOUT;
@@ -108,6 +110,7 @@ int main(int argc, char **argv)
                 template = optarg;
                 break;
             case 'n':
+                nat_enabled = true;
                 break;
             case 'I':
                 icmp_timeout = optarg;
@@ -174,7 +177,7 @@ int main(int argc, char **argv)
     }
 
     /* call router init (for arp subsystem etc.) */
-    sr_init(&sr);
+    sr_init(&sr, nat_enabled, icmp_timeout, tcp_tran_timeout, tcp_est_timeout);
 
     /* -- whizbang main loop ;-) */
     while( sr_read_from_server(&sr) == 1);

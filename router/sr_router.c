@@ -21,6 +21,7 @@
 #include "sr_protocol.h"
 #include "sr_arpcache.h"
 #include "sr_utils.h"
+#include "sr_nat.h"
 
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
@@ -30,7 +31,8 @@
  *
  *---------------------------------------------------------------------*/
 
-void sr_init(struct sr_instance* sr)
+void sr_init(struct sr_instance* sr, bool nat_enabled, unsigned int icmp_timeout,
+             unsigned int tcp_tran_timeout, unsigned int tcp_est_timeout)
 {
     /* REQUIRES */
     assert(sr);
@@ -47,7 +49,14 @@ void sr_init(struct sr_instance* sr)
     pthread_create(&thread, &(sr->attr), sr_arpcache_timeout, sr);
 
     /* Add initialization code here! */
-
+    if(nat_enabled)
+    {
+      sr_nat_init(&sr->nat, icmp_timeout, tcp_tran_timeout, tcp_est_timeout);
+    }
+    else
+    {
+      sr->nat = NULL;
+    }
 } /* -- sr_init -- */
 
 /*---------------------------------------------------------------------
