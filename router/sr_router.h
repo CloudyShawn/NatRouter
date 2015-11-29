@@ -55,6 +55,7 @@ struct sr_instance
     struct sr_arpcache cache;   /* ARP cache */
     pthread_attr_t attr;
     FILE* logfile;
+    int nat_enabled;
     struct sr_nat nat;
 };
 
