@@ -87,5 +87,7 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 void insert_mapping(struct sr_nat *nat, struct sr_nat_mapping *mapping);
 uint16_t get_available_port(struct sr_nat *nat);
 
+void nat_handlepacket(struct sr_nat *nat , uint8_t *packet, unsigned int len, char *interface);
+void nat_handle_ip_packet(struct sr_nat *nat , uint8_t *packet, unsigned int len, char *interface);
 
 #endif

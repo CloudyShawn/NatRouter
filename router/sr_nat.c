@@ -309,3 +309,69 @@ void insert_mapping(struct sr_nat *nat, struct sr_nat_mapping *mapping)
     curr->next = mapping;
   }
 }
+
+void nat_handlepacket(struct sr_nat *nat , uint8_t *packet, unsigned int len, char *interface) {
+  assert(nat);
+  assert(packet);
+  assert(interface);
+
+  printf("*** -> Received packet of length %d \n",len);
+
+  if(len < sizeof(sr_ethernet_hdr_t))
+  {
+    printf("Ethernet packet received is too small\n");
+    return;
+  }
+
+  if(ethertype(packet) == ethertype_arp)
+  {
+    sr_handle_arp_packet(sr, packet, len, interface);
+  }
+  else if(ethertype(packet) == ethertype_ip)
+  {
+    nat_handle_ip_packet(sr, packet, len, interface);
+  }
+  else
+  {
+    printf("Unknown packet received and dropped\n");
+    return;
+  }
+
+}
+
+nat_handle_ip_packet(struct sr_nat *nat , uint8_t *packet, unsigned int len, char *interface) {
+
+  if(len < sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t))
+  {
+    printf("IP packet too small and dropped\n");
+    return;
+  }
+
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+
+  if(cksum(ip_hdr, sizeof(sr_ip_hdr_t)) != 0xffff)
+  {
+    printf("IP checksum invalid, packet dropped\n");
+    return;
+  }
+
+  if(meant_for_this_router(sr, ip_hdr->ip_dst))
+  {
+    if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
+    {
+      sr_handle_icmp_packet(sr, packet, len, interface);
+    }
+    else if (ip_protocol((uint8_t *)ip_hdr) == ip_protocol_tcp){
+      nat_handle_nat_packet(sr, packet, len, interface);
+    }
+    else
+    {
+      sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
+    }
+  }
+  else
+  {
+    printf("FORWARDING IP PACKET\n");
+    sr_forward_ip_packet(sr, packet, len, interface);
+  }
+}
