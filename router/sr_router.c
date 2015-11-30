@@ -97,7 +97,14 @@ void sr_handlepacket(struct sr_instance* sr,
   }
   else if(ethertype(packet) == ethertype_ip)
   {
-    sr_handle_ip_packet(sr, packet, len, interface);
+    if(sr->nat_enabled == 1)
+    {
+      nat_handlepacket(sr, packet, len, interface);
+    }
+    else
+    {
+      sr_handle_ip_packet(sr, packet, len, interface);
+    }
   }
   else
   {
@@ -301,13 +308,11 @@ void sr_forward_ip_packet(struct sr_instance *sr,
     return;
   }
 
-  printf("MAKING NEW PACKET TO FORWARD\n");
   uint8_t *new_packet = malloc(len);
   memset(new_packet, 0, len);
   sr_ethernet_hdr_t *new_ether_hdr = (sr_ethernet_hdr_t *)new_packet;
   sr_ip_hdr_t *new_ip_hdr = (sr_ip_hdr_t *)(new_packet + sizeof(sr_ethernet_hdr_t));
 
-  printf("FILLING IN DETAILS OF NEW PACKET\n");
   memcpy((char *)new_ip_hdr + sizeof(sr_ip_hdr_t),
          (char *)old_ip_hdr + sizeof(sr_ip_hdr_t),
          len - sizeof(sr_ethernet_hdr_t) - sizeof(sr_ip_hdr_t));
@@ -332,17 +337,14 @@ void sr_forward_ip_packet(struct sr_instance *sr,
     printf("No routing table match, dropping packet\n");
     return;
   }
-  printf("FOUND ROUTE\n");
 
   struct sr_if *iface = sr_get_interface(sr, route->interface);
   memcpy(new_ether_hdr->ether_shost, iface->addr, ETHER_ADDR_LEN);
   new_ether_hdr->ether_type = htons(ethertype_ip);
-  printf("INTERFACE FOUND\n");
 
   struct sr_arpentry *arp_entry = sr_arpcache_lookup(&(sr->cache), new_ip_hdr->ip_dst);
   if(arp_entry)
   {
-    printf("FOUND ARP MATCH\n");
     memcpy(new_ether_hdr->ether_dhost, arp_entry->mac, ETHER_ADDR_LEN);
 
     sr_send_packet(sr, new_packet, len, route->interface);
@@ -352,7 +354,6 @@ void sr_forward_ip_packet(struct sr_instance *sr,
   }
   else
   {
-    printf("ADDING ORIGINAL PACKET TO CACHE\n");
     /*Add req to cache*/
     memset(new_packet, 0, len);
     memcpy(new_packet, packet, len);
@@ -492,12 +493,10 @@ void sr_send_icmp_packet(struct sr_instance *sr,
   sr_ethernet_hdr_t *new_ether_hdr = (sr_ethernet_hdr_t *)new_packet;
   memcpy(new_ether_hdr->ether_shost, iface->addr, ETHER_ADDR_LEN);
   new_ether_hdr->ether_type = htons(ethertype_ip);
-  printf("INTERFACE FOUND\n");
 
   struct sr_arpentry *arp_entry = sr_arpcache_lookup(&(sr->cache), new_ip_hdr->ip_dst);
   if(arp_entry)
   {
-    printf("FOUND ARP MATCH\n");
     memcpy(new_ether_hdr->ether_dhost, arp_entry->mac, ETHER_ADDR_LEN);
 
     sr_send_packet(sr, new_packet, new_len, route->interface);
@@ -507,21 +506,11 @@ void sr_send_icmp_packet(struct sr_instance *sr,
   }
   else
   {
-    printf("ADDING ORIGINAL PACKET TO CACHE\n");
     /*Add req to cache*/
-
     struct sr_arpreq *req = sr_arpcache_queuereq(&(sr->cache), new_ip_hdr->ip_dst, new_packet, new_len, route->interface);
     sr_handle_arpreq(sr, req);
   }
-  /*
-  memcpy(new_ether_hdr->ether_dhost, old_ether_hdr->ether_shost, ETHER_ADDR_LEN);
-
-  memcpy(new_ether_hdr->ether_shost, old_ether_hdr->ether_dhost, ETHER_ADDR_LEN);
-  new_ether_hdr->ether_type = htons(ethertype_ip);
-
-  sr_send_packet(sr, new_packet, new_len, route->interface);
-  free(new_packet);*/
-}
+}/* end sr_send_icmp_packet */
 
 unsigned int meant_for_this_router(struct sr_instance *sr, uint32_t dest_ip)
 {

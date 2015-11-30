@@ -312,18 +312,92 @@ void insert_mapping(struct sr_nat *nat, struct sr_nat_mapping *mapping)
   }
 }
 
-void nat_handlepacket(struct sr_instance *sr, struct sr_nat *nat , uint8_t *packet, char type) {
-  if (type == 'i') {
-    //do ICMP header lookup/mapping
-    //return modified and checksummed packet
+void nat_handlepacket(struct sr_instance *sr, uint8_t *packet,
+                      unsigned int len, char *interface)
+{
+  if(len < sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t))
+  {
+    printf("IP packet too small and dropped\n");
+    return;
   }
 
-  if (type == 't') {
-    //Same shit as ICMP
-    nat->
-
+  if(strcmp("eth1", interface) == 0)
+  {
+    nat_packet_internal(sr, packet, len, interface);
+  }
+  else
+  {
+    nat_packet_external(sr, packet, len, interface);
   }
 }
- 
 
+void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
+                         unsigned int len, char *interface)
+{
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
 
+  if(cksum(ip_hdr, sizeof(sr_ip_hdr_t)) != 0xffff)
+  {
+    printf("IP checksum invalid, packet dropped\n");
+    return;
+  }
+
+  struct sr_nat_mapping *mapping;
+
+  if(ip_protocol(ip_hdr) == ip_protocol_tcp)
+  {
+    sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+
+    /* Toss if destined for the router */
+    if(meant_for_this_router(sr, ip_hdr->ip_dst))
+    {
+      sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
+      return;
+    }
+
+    mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, tcp_hdr->tcp_src, nat_mapping_tcp);
+
+    if(mapping == NULL)
+    {
+      mapping = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, sr_get_interface(sr, "eth2")->ip, tcp_hdr->tcp_src, nat_mapping_tcp);
+    }
+
+    /* CHECK/ADD CONN AND REWRITE IP/TCP header */
+    /* SEND FUCKING PACKET USING sr_forward_ip_packet() */
+  }
+  else if(ip_protocol(ip_hdr) == ip_protocol_icmp)
+  {
+    sr_icmp_hdr_t *icmp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+
+    /* Reply if internal icmp echo requested */
+    if(meant_for_this_router(sr, ip_hdr->ip_dst))
+    {
+      sr_handle_icmp_packet(sr, packet, len, interface);
+    }
+    /* Needs to be translated and forwarded */
+    else
+    {
+      mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, icmp_hdr->icmp_op1);
+
+      if(mapping == NULL)
+      {
+        mapping = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, sr_get_interface(sr, "eth2")->ip, icmp_hdr->icmp_op1, nat_mapping_tcp);
+      }
+
+      /* NO CONN INFO NEEDED */
+      /* FIX HEADER AND SEND THE FUCK OUT USING sr_forward_ip_packet() */
+    }
+  }
+  else /* UDP packet, drop */
+  {
+    printf("UDP packet inbound, dropping.");
+    sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
+    return;
+  }
+}
+
+void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
+                         unsigned int len, char *interface)
+{
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+}
