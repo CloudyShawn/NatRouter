@@ -310,8 +310,9 @@ void insert_mapping(struct sr_nat *nat, struct sr_nat_mapping *mapping)
   }
 }
 
-void nat_handlepacket(struct sr_nat *nat , uint8_t *packet, unsigned int len, char *interface) {
+void nat_handlepacket(struct sr_instance *sr, struct sr_nat *nat , uint8_t *packet, unsigned int len, char *interface) {
   assert(nat);
+  assert(sr);
   assert(packet);
   assert(interface);
 
@@ -339,7 +340,7 @@ void nat_handlepacket(struct sr_nat *nat , uint8_t *packet, unsigned int len, ch
 
 }
 
-nat_handle_ip_packet(struct sr_nat *nat , uint8_t *packet, unsigned int len, char *interface) {
+nat_handle_ip_packet(struct sr_instance *sr, struct sr_nat *nat , uint8_t *packet, unsigned int len, char *interface) {
 
   if(len < sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t))
   {
