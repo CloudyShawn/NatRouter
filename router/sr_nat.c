@@ -4,6 +4,8 @@
 #include <signal.h>
 #include <assert.h>
 #include "sr_nat.h"
+#include "sr_router.h"
+#include "sr_protocol.h"
 #include <unistd.h>
 
 /* Initializes the nat */
