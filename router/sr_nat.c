@@ -267,6 +267,8 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
 /************************************************************************
 **  get_available_port()
+**    struct sr_nat *nat
+**        - The NAT instance containing all used port numbers
 **
 **    Returns an unused port number
 ************************************************************************/

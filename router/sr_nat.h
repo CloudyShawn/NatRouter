@@ -34,6 +34,8 @@ struct sr_nat_connection {
   /* add TCP connection state data members here */
   sr_tcp_conn_state state;
   time_t last_updated;
+  uint32_t dst_ip;
+  uint16_t dst_port;
 
   struct sr_nat_connection *next;
 };
