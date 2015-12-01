@@ -404,14 +404,6 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
 }
 
-/* Takes a mapping and searches for a connection using destination ip
-   If not conn found, returns null.*/
-struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *mapping,
-                                               uint32_t dst_ip, uint16_t dst_port)
-{
-  return NULL;
-}
-
 struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr_nat_mapping *mapping,
                                                    uint32_t dst_ip, uint16_t dst_port)
 {
@@ -485,4 +477,32 @@ void sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *pack
   //recalculate checksum
   ip_hdr -> ip_sum = 0x0000;
   ip_hdr -> ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+}
+
+
+/* Takes a mapping and searches for a connection using destination ip
+   If not conn found, returns null.*/
+struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *mapping,
+                                                uint32_t dst_ip, uint16_t dst_port);
+  
+  pthread_mutex_lock(&(nat->lock));
+
+  /* handle lookup here, malloc and assign to copy. */
+  struct sr_nat_connection *copy = NULL;
+
+  struct sr_nat_connection *connection = nat->mappings->conns;
+  while(connection)
+  {
+    if(connection->dst_ip == dst_ip && connection->dst_port == dst_port)
+    {
+      copy = malloc(sizeof(struct sr_nat_connection));
+      memcpy(copy, connection, sizeof(struct sr_nat_connection));
+
+      pthread_mutex_unlock(&(nat->lock));
+      return copy;
+    }
+  }
+
+  pthread_mutex_unlock(&(nat->lock));
+  return copy;
 }
