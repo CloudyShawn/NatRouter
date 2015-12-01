@@ -406,10 +406,38 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
 
 /* Takes a mapping and searches for a connection using destination ip
    If not conn found, returns null.*/
-struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *,
+struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *mapping,
                                                uint32_t dst_ip, uint16_t dst_port)
 {
   return NULL;
+}
+
+struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr_nat_mapping *mapping,
+                                                   uint32_t dst_ip, uint16_t dst_port)
+{
+  pthread_mutex_lock(&(nat->lock));
+
+  struct sr_nat_connection *new_conn = malloc(sizeof(struct sr_nat_connection));
+  struct sr_nat_connection *new_conn_copy = malloc(sizeof(struct sr_nat_connection));
+  new_conn->state = state_closed;
+  new_conn->last_updated = time(NULL);
+  new_conn->dst_ip = dst_ip;
+  new_conn->dst_port = dst_port;
+
+  struct sr_nat_mapping *curr = nat->mappings;
+  while(curr != mapping)
+  {
+    curr = curr->next;
+  }
+
+  new_conn->next = curr->conns;
+  curr->conns = new_conn
+
+  memcpy(new_conn_copy, new_conn, sizeof(struct sr_nat_connection));
+
+  return new_conn_copy;
+
+  pthread_mutex_unlock(&(nat->lock));
 }
 
 /* Given a packet from the internal interface, apply external mapping */
