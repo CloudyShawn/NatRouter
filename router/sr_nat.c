@@ -403,3 +403,23 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
 {
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
 }
+
+/* Takes a mapping and searches for a connection using destination ip
+   If not conn found, returns null.*/
+struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *mapping,
+                                                uint32_t dst_ip)
+{
+  return NULL;
+}
+
+/* Given a packet from the internal interface, apply external mapping */
+void sr_nat_apply_mapping_internal(struct sr_nat_mapping *mapping, uint8_t *packet)
+{
+
+}
+
+/* Given a packet from the external interface, apply internal mapping */
+void sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *packet)
+{
+
+}

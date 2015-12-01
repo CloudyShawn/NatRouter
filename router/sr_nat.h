@@ -98,4 +98,8 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
 void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
                          unsigned int len, char *interface);
 
+struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *, uint32_t dst_ip);
+void sr_nat_apply_mapping_internal(struct sr_nat_mapping *, uint8_t *);
+void sr_nat_apply_mapping_external(struct sr_nat_mapping *, uint8_t *);
+
 #endif
