@@ -406,8 +406,8 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
 
 /* Takes a mapping and searches for a connection using destination ip
    If not conn found, returns null.*/
-struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *mapping,
-                                                uint32_t dst_ip)
+struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *,
+                                               uint32_t dst_ip, uint16_t dst_port)
 {
   return NULL;
 }
