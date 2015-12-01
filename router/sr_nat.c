@@ -415,11 +415,38 @@ struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *,
 /* Given a packet from the internal interface, apply external mapping */
 void sr_nat_apply_mapping_internal(struct sr_nat_mapping *mapping, uint8_t *packet)
 {
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+  ip_hdr -> ip_src = mapping -> ip_ext;
 
+  if (ip_protocol(ip_hdr) == ip_protocol_icmp) {
+    sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + 1);
+    icmp_hdr -> icmp_op1 = mapping -> aux_ext;
+      }
+  else { //TCP 
+    sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
+    tcp_hdr -> tcp_src = mapping -> aux_ext;
+      }
+  //recalculate checksum
+  ip_hdr -> ip_sum = 0x0000;
+  ip_hdr -> ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
 }
+
 
 /* Given a packet from the external interface, apply internal mapping */
 void sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *packet)
 {
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+  ip_hdr -> ip_dst = mapping -> ip_int;
 
+  if (ip_protocol(ip_hdr) == ip_protocol_icmp) {
+    sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + 1);
+    icmp_hdr -> icmp_op1 = mapping -> aux_int;
+      }
+  else { //TCP 
+    sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
+    tcp_hdr -> tcp_dst = mapping -> aux_int;
+      }
+  //recalculate checksum
+  ip_hdr -> ip_sum = 0x0000;
+  ip_hdr -> ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
 }
