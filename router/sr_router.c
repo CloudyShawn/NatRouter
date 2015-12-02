@@ -53,7 +53,7 @@ void sr_init(struct sr_instance* sr, int nat_enabled, unsigned int icmp_timeout,
 
     if(nat_enabled == 1)
     {
-      sr_nat_init(&sr->nat, icmp_timeout, tcp_tran_timeout, tcp_est_timeout);
+      sr_nat_init(&(sr->nat), icmp_timeout, tcp_tran_timeout, tcp_est_timeout);
     }
 } /* -- sr_init -- */
 

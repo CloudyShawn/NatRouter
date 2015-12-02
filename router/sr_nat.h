@@ -3,7 +3,10 @@
 #define SR_NAT_TABLE_H
 
 #include <inttypes.h>
-#include <time.h>
+#include <sys/time.h>
+#include <stdint.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
 #include <pthread.h>
 #include "sr_protocol.h"
 #include "sr_router.h"
@@ -68,7 +71,7 @@ struct sr_nat {
 };
 
 
-int sr_nat_init(struct sr_nat *nat, unsigned int icmp_timeout,
+int sr_nat_init(struct sr_nat **nat_ptr, unsigned int icmp_timeout,
                 unsigned int tcp_tran_timeout, unsigned int tcp_est_timeout);     /* Initializes the nat */
 int   sr_nat_destroy(struct sr_nat *nat);  /* Destroys the nat (free memory) */
 void *sr_nat_timeout(void *nat_ptr);  /* Periodic Timout */

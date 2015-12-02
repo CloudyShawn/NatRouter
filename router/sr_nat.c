@@ -10,9 +10,10 @@
 #include <unistd.h>
 
 /* Initializes the nat */
-int sr_nat_init(struct sr_nat *nat, unsigned int icmp_timeout,
+int sr_nat_init(struct sr_nat **nat_ptr, unsigned int icmp_timeout,
                 unsigned int tcp_tran_timeout, unsigned int tcp_est_timeout)
 {
+  struct sr_nat *nat = *nat_ptr;
   assert(nat);
 
   /* Acquire mutex lock */
