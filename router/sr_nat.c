@@ -448,7 +448,7 @@ void sr_nat_apply_mapping_internal(struct sr_nat_mapping *mapping, uint8_t *pack
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
     tcp_hdr -> tcp_src = mapping -> aux_ext;
     tcp_hdr -> tcp_sum = 0x0000;
-    tcp_hdr -> tcp_sum = cksum(tcp_hdr, (ip_hdr -> ip_len) - sizeof(ip_hdr));
+    tcp_hdr -> tcp_sum = cksum(tcp_hdr, (ip_hdr -> ip_len) - ip_hdr -> ip_hl);
       }
   //recalculate checksum
   ip_hdr -> ip_sum = 0x0000;
@@ -472,7 +472,7 @@ void sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *pack
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
     tcp_hdr -> tcp_dst = mapping -> aux_int;
     tcp_hdr -> tcp_sum = 0x0000;
-    tcp_hdr -> tcp_sum = cksum(tcp_hdr, (ip_hdr -> ip_len) - sizeof(ip_hdr));
+    tcp_hdr -> tcp_sum = cksum(tcp_hdr, (ip_hdr -> ip_len) - ip_hdr -> ip_hl);
       }
   //recalculate checksum
   ip_hdr -> ip_sum = 0x0000;
