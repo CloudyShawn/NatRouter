@@ -6,6 +6,7 @@
 #include "sr_nat.h"
 #include "sr_router.h"
 #include "sr_protocol.h"
+#include "sr_utils.h"
 #include <unistd.h>
 
 /* Initializes the nat */
@@ -325,11 +326,11 @@ void nat_handlepacket(struct sr_instance *sr, uint8_t *packet,
 
   if(strcmp("eth1", interface) == 0)
   {
-    nat_packet_internal(sr, packet, len, interface);
+    nat_handle_internal(sr, packet, len, interface);
   }
   else
   {
-    nat_packet_external(sr, packet, len, interface);
+    nat_handle_external(sr, packet, len, interface);
   }
 }
 
@@ -346,7 +347,7 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
 
   struct sr_nat_mapping *mapping;
 
-  if(ip_protocol(ip_hdr) == ip_protocol_tcp)
+  if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_tcp)
   {
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 
@@ -365,10 +366,10 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
     }
 
     /* CHECK/ADD CONN */
-    sr_nat_connection *conn = nat_connection_lookup(mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
+    struct sr_nat_connection *conn = nat_connection_lookup(mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
     if(conn == NULL)
     {
-      conn = sr_nat_insert_connection(nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
+      conn = sr_nat_insert_connection(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
     }
 
     /* FIX CONN STATE DATA ACCORDING TO PACKET FLAGS */
@@ -379,9 +380,9 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
     /* SEND FUCKING PACKET USING sr_forward_ip_packet() */
     sr_forward_ip_packet(sr, packet, len, interface);
   }
-  else if(ip_protocol(ip_hdr) == ip_protocol_icmp)
+  else if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
   {
-    sr_icmp_hdr_t *icmp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+    sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 
     /* Reply if internal icmp echo requested */
     if(meant_for_this_router(sr, ip_hdr->ip_dst))
@@ -391,7 +392,7 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
     /* Needs to be translated and forwarded */
     else
     {
-      mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, icmp_hdr->icmp_op1);
+      mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, icmp_hdr->icmp_op1, nat_mapping_icmp);
 
       if(mapping == NULL)
       {
@@ -416,7 +417,7 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
 void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
                          unsigned int len, char *interface)
 {
-  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+  /*sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));*/
 }
 
 struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr_nat_mapping *mapping,
@@ -438,7 +439,7 @@ struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr
   }
 
   new_conn->next = curr->conns;
-  curr->conns = new_conn
+  curr->conns = new_conn;
 
   memcpy(new_conn_copy, new_conn, sizeof(struct sr_nat_connection));
 
@@ -451,23 +452,25 @@ struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr
 void sr_nat_apply_mapping_internal(struct sr_nat_mapping *mapping, uint8_t *packet)
 {
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-  ip_hdr -> ip_src = mapping -> ip_ext;
+  ip_hdr->ip_src = mapping->ip_ext;
 
-  if (ip_protocol(ip_hdr) == ip_protocol_icmp) {
+  if (ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp) 
+  {
     sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + 1);
-    icmp_hdr -> icmp_op1 = mapping -> aux_ext;
-    icmp_hdr -> icmp_sum = 0x0000;
-    icmp_hdr -> icmp_sum = cksum(icmp_hdr, (ip_hdr -> ip_len) - sizeof(ip_hdr));
+    icmp_hdr->icmp_op1 = mapping->aux_ext;
+    icmp_hdr->icmp_sum = 0x0000;
+    icmp_hdr->icmp_sum = cksum(icmp_hdr, (ip_hdr -> ip_len) - sizeof(ip_hdr));
   }
-  else { //TCP
+  else 
+  { /*TCP*/
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
-    tcp_hdr -> tcp_src = mapping -> aux_ext;
-    tcp_hdr -> tcp_sum = 0x0000;
-    tcp_hdr -> tcp_sum = cksum(tcp_hdr, (ip_hdr -> ip_len) - ip_hdr -> ip_hl);
-      }
-  //recalculate checksum
-  ip_hdr -> ip_sum = 0x0000;
-  ip_hdr -> ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+    tcp_hdr->tcp_src = mapping->aux_ext;
+    tcp_hdr->tcp_sum = 0x0000;
+    tcp_hdr->tcp_sum = cksum(tcp_hdr, (ip_hdr->ip_len) - ip_hdr->ip_hl);
+  }
+  /*recalculate checksum*/
+  ip_hdr->ip_sum = 0x0000;
+  ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
 }
 
 
@@ -475,23 +478,25 @@ void sr_nat_apply_mapping_internal(struct sr_nat_mapping *mapping, uint8_t *pack
 void sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *packet)
 {
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-  ip_hdr -> ip_dst = mapping -> ip_int;
+  ip_hdr->ip_dst = mapping->ip_int;
 
-  if (ip_protocol(ip_hdr) == ip_protocol_icmp) {
+  if (ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp) 
+  {
     sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + 1);
-    icmp_hdr -> icmp_op1 = mapping -> aux_int;
-    icmp_hdr -> icmp_sum = 0x0000;
-    icmp_hdr -> icmp_sum = cksum(icmp_hdr, (ip_hdr -> ip_len) - sizeof(ip_hdr));
-      }
-  else { //TCP
+    icmp_hdr->icmp_op1 = mapping -> aux_int;
+    icmp_hdr->icmp_sum = 0x0000;
+    icmp_hdr->icmp_sum = cksum(icmp_hdr, (ip_hdr->ip_len) - sizeof(ip_hdr));
+  }
+  else 
+  { /*TCP*/
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
-    tcp_hdr -> tcp_dst = mapping -> aux_int;
-    tcp_hdr -> tcp_sum = 0x0000;
-    tcp_hdr -> tcp_sum = cksum(tcp_hdr, (ip_hdr -> ip_len) - ip_hdr -> ip_hl);
-      }
-  //recalculate checksum
-  ip_hdr -> ip_sum = 0x0000;
-  ip_hdr -> ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+    tcp_hdr->tcp_dst = mapping->aux_int;
+    tcp_hdr->tcp_sum = 0x0000;
+    tcp_hdr->tcp_sum = cksum(tcp_hdr, ip_hdr->ip_len - ip_hdr->ip_hl);
+  }
+  /*recalculate checksum*/
+  ip_hdr->ip_sum = 0x0000;
+  ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
 }
 
 
@@ -505,7 +510,7 @@ struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *mapping,
   struct sr_nat_mapping *curr = nat->mappings;
   while(curr != mapping)
   {
-    curr = curr->next
+    curr = curr->next;
   }
 
   /* handle lookup here, malloc and assign to copy. */
@@ -527,3 +532,4 @@ struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *mapping,
   pthread_mutex_unlock(&(nat->lock));
   return copy;
 }
+

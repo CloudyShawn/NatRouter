@@ -5,6 +5,8 @@
 #include <inttypes.h>
 #include <time.h>
 #include <pthread.h>
+#include "sr_protocol.h"
+#include "sr_router.h"
 
 #define MIN_PORT_NUMBER 1024
 #define MAX_PORT_NUMBER 65535
