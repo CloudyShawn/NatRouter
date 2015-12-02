@@ -366,7 +366,7 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
     }
 
     /* CHECK/ADD CONN */
-    struct sr_nat_connection *conn = nat_connection_lookup(mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
+    struct sr_nat_connection *conn = nat_connection_lookup(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
     if(conn == NULL)
     {
       conn = sr_nat_insert_connection(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
@@ -454,14 +454,14 @@ void sr_nat_apply_mapping_internal(struct sr_nat_mapping *mapping, uint8_t *pack
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
   ip_hdr->ip_src = mapping->ip_ext;
 
-  if (ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp) 
+  if (ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
   {
     sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + 1);
     icmp_hdr->icmp_op1 = mapping->aux_ext;
     icmp_hdr->icmp_sum = 0x0000;
     icmp_hdr->icmp_sum = cksum(icmp_hdr, (ip_hdr -> ip_len) - sizeof(ip_hdr));
   }
-  else 
+  else
   { /*TCP*/
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
     tcp_hdr->tcp_src = mapping->aux_ext;
@@ -480,14 +480,14 @@ void sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *pack
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
   ip_hdr->ip_dst = mapping->ip_int;
 
-  if (ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp) 
+  if (ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
   {
     sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + 1);
     icmp_hdr->icmp_op1 = mapping -> aux_int;
     icmp_hdr->icmp_sum = 0x0000;
     icmp_hdr->icmp_sum = cksum(icmp_hdr, (ip_hdr->ip_len) - sizeof(ip_hdr));
   }
-  else 
+  else
   { /*TCP*/
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
     tcp_hdr->tcp_dst = mapping->aux_int;
@@ -502,7 +502,7 @@ void sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *pack
 
 /* Takes a mapping and searches for a connection using destination ip
    If not conn found, returns null.*/
-struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *mapping,
+struct sr_nat_connection *nat_connection_lookup(struct sr_nat *nat, struct sr_nat_mapping *mapping,
                                                 uint32_t dst_ip, uint16_t dst_port)
 {
   pthread_mutex_lock(&(nat->lock));
@@ -532,4 +532,3 @@ struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *mapping,
   pthread_mutex_unlock(&(nat->lock));
   return copy;
 }
-
