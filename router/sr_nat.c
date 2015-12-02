@@ -364,8 +364,20 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
       mapping = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, sr_get_interface(sr, "eth2")->ip, tcp_hdr->tcp_src, nat_mapping_tcp);
     }
 
-    /* CHECK/ADD CONN AND REWRITE IP/TCP header */
+    /* CHECK/ADD CONN */
+    sr_nat_connection *conn = nat_connection_lookup(mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
+    if(conn == NULL)
+    {
+      conn = sr_nat_insert_connection(nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
+    }
+
+    /* FIX CONN STATE DATA ACCORDING TO PACKET FLAGS */
+
+    /* REWRITE IP/TCP header */
+    sr_nat_apply_mapping_internal(mapping, packet);
+
     /* SEND FUCKING PACKET USING sr_forward_ip_packet() */
+    sr_forward_ip_packet(sr, packet, len, interface);
   }
   else if(ip_protocol(ip_hdr) == ip_protocol_icmp)
   {
@@ -388,6 +400,9 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
 
       /* NO CONN INFO NEEDED */
       /* FIX HEADER AND SEND THE FUCK OUT USING sr_forward_ip_packet() */
+      sr_nat_apply_mapping_internal(mapping, packet);
+
+      sr_forward_ip_packet(sr, packet, len, interface);
     }
   }
   else /* UDP packet, drop */
@@ -483,14 +498,20 @@ void sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *pack
 /* Takes a mapping and searches for a connection using destination ip
    If not conn found, returns null.*/
 struct sr_nat_connection *nat_connection_lookup(struct sr_nat_mapping *mapping,
-                                                uint32_t dst_ip, uint16_t dst_port);
-
+                                                uint32_t dst_ip, uint16_t dst_port)
+{
   pthread_mutex_lock(&(nat->lock));
+
+  struct sr_nat_mapping *curr = nat->mappings;
+  while(curr != mapping)
+  {
+    curr = curr->next
+  }
 
   /* handle lookup here, malloc and assign to copy. */
   struct sr_nat_connection *copy = NULL;
 
-  struct sr_nat_connection *connection = nat->mappings->conns;
+  struct sr_nat_connection *connection = curr->conns;
   while(connection)
   {
     if(connection->dst_ip == dst_ip && connection->dst_port == dst_port)
