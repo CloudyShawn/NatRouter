@@ -376,10 +376,12 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
     /* FIX CONN STATE DATA ACCORDING TO PACKET FLAGS */
 
     /* REWRITE IP/TCP header */
-    sr_nat_apply_mapping_internal(mapping, packet);
+    uint8_t *new_packet = sr_nat_apply_mapping_internal(mapping, packet, len);
 
     /* SEND FUCKING PACKET USING sr_forward_ip_packet() */
-    sr_forward_ip_packet(sr, packet, len, interface);
+    sr_forward_ip_packet(sr, new_packet, len, interface);
+
+    free(new_packet);
   }
   else if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
   {
@@ -402,9 +404,11 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
 
       /* NO CONN INFO NEEDED */
       /* FIX HEADER AND SEND THE FUCK OUT USING sr_forward_ip_packet() */
-      sr_nat_apply_mapping_internal(mapping, packet);
+      uint8_t *new_packet = sr_nat_apply_mapping_internal(mapping, packet, len);
 
-      sr_forward_ip_packet(sr, packet, len, interface);
+      sr_forward_ip_packet(sr, new_packet, len, interface);
+
+      free(new_packet);
     }
   }
   else /* UDP packet, drop */
@@ -450,9 +454,13 @@ struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr
 }
 
 /* Given a packet from the internal interface, apply external mapping */
-void sr_nat_apply_mapping_internal(struct sr_nat_mapping *mapping, uint8_t *packet)
+uint8_t *sr_nat_apply_mapping_internal(struct sr_nat_mapping *mapping, uint8_t *packet, unsigned int len)
 {
-  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+  uint8_t *new_packet = malloc(len);
+  memset(new_packet, 0, len);
+  memcpy(new_packet, packet, len);
+
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(new_packet + sizeof(sr_ethernet_hdr_t));
   ip_hdr->ip_src = mapping->ip_ext;
 
   if (ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
@@ -460,7 +468,7 @@ void sr_nat_apply_mapping_internal(struct sr_nat_mapping *mapping, uint8_t *pack
     sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + 1);
     icmp_hdr->icmp_op1 = mapping->aux_ext;
     icmp_hdr->icmp_sum = 0x0000;
-    icmp_hdr->icmp_sum = cksum(icmp_hdr, (ip_hdr -> ip_len) - sizeof(ip_hdr));
+    icmp_hdr->icmp_sum = cksum(icmp_hdr, (ip_hdr->ip_len) - sizeof(ip_hdr));
   }
   else
   { /*TCP*/
@@ -472,13 +480,19 @@ void sr_nat_apply_mapping_internal(struct sr_nat_mapping *mapping, uint8_t *pack
   /*recalculate checksum*/
   ip_hdr->ip_sum = 0x0000;
   ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+
+  return new_packet;
 }
 
 
 /* Given a packet from the external interface, apply internal mapping */
-void sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *packet)
+uint8_t *sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *packet, unsigned int len)
 {
-  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+  uint8_t *new_packet = malloc(len);
+  memset(new_packet, 0, len);
+  memcpy(new_packet, packet, len);
+
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(new_packet + sizeof(sr_ethernet_hdr_t));
   ip_hdr->ip_dst = mapping->ip_int;
 
   if (ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
@@ -498,6 +512,8 @@ void sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *pack
   /*recalculate checksum*/
   ip_hdr->ip_sum = 0x0000;
   ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+
+  return new_packet;
 }
 
 

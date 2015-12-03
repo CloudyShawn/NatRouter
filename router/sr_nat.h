@@ -109,7 +109,7 @@ struct sr_nat_connection *nat_connection_lookup(struct sr_nat *nat, struct sr_na
 struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr_nat_mapping *mapping,
                                                    uint32_t dst_ip, uint16_t dst_port);
 
-void sr_nat_apply_mapping_internal(struct sr_nat_mapping *, uint8_t *);
-void sr_nat_apply_mapping_external(struct sr_nat_mapping *, uint8_t *);
+uint8_t *sr_nat_apply_mapping_internal(struct sr_nat_mapping *, uint8_t *);
+uint8_t *sr_nat_apply_mapping_external(struct sr_nat_mapping *, uint8_t *);
 
 #endif
