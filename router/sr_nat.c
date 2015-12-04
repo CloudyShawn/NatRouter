@@ -443,7 +443,42 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
 void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
                          unsigned int len, char *interface)
 {
-  
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+
+  if(cksum(ip_hdr, sizeof(sr_ip_hdr_t)) != 0xffff)
+  {
+    printf("IP checksum invalid, packet dropped\n");
+    return;
+  }
+
+  struct sr_nat_mapping *mapping = NULL;
+
+  if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_tcp)
+  {
+
+  }
+  else if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
+  {
+    sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + 1);
+
+    mapping = sr_nat_lookup_external(sr->nat, icmp_hdr->icmp_op1, nat_mapping_icmp);
+    if(mapping == NULL)
+    {
+        /* DROP PACKET FOR NOW */
+        sr_handle_icmp_packet(sr, packet, len, interface);
+        return;
+    }
+
+    sr_nat_apply_mapping_external(mapping, packet, len);
+
+    sr_forward_ip_packet(sr, packet, len, interface);
+  }
+  else
+  {
+    printf("Dropping unknown IP packet (possibly UDP)\n");
+    sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
+    return;
+  }
 }
 
 struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr_nat_mapping *mapping,
@@ -660,5 +695,3 @@ int isFlag(struct sr_tcp_hdr_t *tcp_hdr) {
         return 0;
   }
 }
-
-
