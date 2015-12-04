@@ -1,0 +1,31 @@
+Address & Port mapping behaviour
+  NAT MUST HAVE Endpoint-Independent mapping
+    (X:x)->(X1:x1) for all external (Y2:y2)
+
+ONLY INTERNAL CREATE MAPPING
+
+Internal Initiated
+  Initiates TCP by sending a SYN for 3 way
+    Allocate/Resuse mapping
+      Syn-ACK returned
+        ACK sent back
+  Initiate simultaneous tcp by sending syn in both direction
+    same shit as above, just modify state properly
+
+External Initiated
+  MUST HAVE endpoint-independant filtering
+    create conn only if mapping exists for:
+      all connection initiation from all (Y2:y2) to a mapped (X1:x1)->(X:x)
+  If filtered SYN: (not allowed)
+    2 options:
+      ignore silently
+        more reliable for simultaneous open
+      send ICMP
+        fuck that
+  If no mapp exists
+    check for syn
+      wait 6 seconds
+        if mapping made
+          drop syn silently
+        else
+          send ICMP port unreachable (3,3)
