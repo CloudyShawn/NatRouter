@@ -609,12 +609,5 @@ int isFlag(sr_tcp_hdr_t *tcp_hdr) {
 
 int isFlagType(sr_tcp_hdr_t *tcp_hdr, uint8_t flag)
 {
-  if (tcp_hdr->tcp_flags & flag)
-  {
-    return 1;
-  }
-  else
-  {
-    return 0;
-  }
+  return (tcp_hdr->tcp_flags & flag) > 0;
 }
