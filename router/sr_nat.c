@@ -462,8 +462,16 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
     {
         /* DROP PACKET FOR NOW */
         /* sr_handle_ip_packet(sr, packet, len, interface); */
-      if isFlagType(tcp_hdr, TCP_SYN) {
-        
+      if (isFlagType(tcp_hdr, TCP_SYN) == 1) {
+        time_t timeNow = time(NULL);
+        while (difftime (time(NULL), timeNow) < tcp_unsolicited_timeout) {
+          mapping = sr_nat_lookup_external(sr->nat, tcp_hdr->tcp_dst, nat_mapping_tcp);
+          if (mapping != NULL) {
+            return;
+          }
+        }
+        sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
+        // send ICMP unreachable?
       }
     
     struct sr_nat_connection *conn = nat_connection_lookup(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
