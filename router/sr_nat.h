@@ -71,7 +71,7 @@ struct sr_nat {
 };
 
 
-int sr_nat_init(struct sr_nat **nat_ptr, unsigned int icmp_timeout,
+int sr_nat_init(struct sr_nat *nat_ptr, unsigned int icmp_timeout,
                 unsigned int tcp_tran_timeout, unsigned int tcp_est_timeout);     /* Initializes the nat */
 int   sr_nat_destroy(struct sr_nat *nat);  /* Destroys the nat (free memory) */
 void *sr_nat_timeout(void *nat_ptr);  /* Periodic Timout */
@@ -109,7 +109,7 @@ struct sr_nat_connection *nat_connection_lookup(struct sr_nat *nat, struct sr_na
 struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr_nat_mapping *mapping,
                                                    uint32_t dst_ip, uint16_t dst_port);
 
-uint8_t *sr_nat_apply_mapping_internal(struct sr_nat_mapping *, uint8_t *);
-uint8_t *sr_nat_apply_mapping_external(struct sr_nat_mapping *, uint8_t *);
+void sr_nat_apply_mapping_internal(struct sr_nat_mapping *, uint8_t *);
+void sr_nat_apply_mapping_external(struct sr_nat_mapping *, uint8_t *);
 
 #endif

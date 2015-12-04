@@ -50,10 +50,13 @@ void sr_init(struct sr_instance* sr, int nat_enabled, unsigned int icmp_timeout,
 
     /* Add initialization code here! */
     sr->nat_enabled = nat_enabled;
+    printf("%d\n", nat_enabled);
 
-    if(nat_enabled == 1)
+    if(sr->nat_enabled == 1)
     {
-      sr_nat_init(&(sr->nat), icmp_timeout, tcp_tran_timeout, tcp_est_timeout);
+      printf("ENABLING NAT\n");
+      sr->nat = malloc(sizeof(struct sr_nat));
+      sr_nat_init(sr->nat, icmp_timeout, tcp_tran_timeout, tcp_est_timeout);
     }
 } /* -- sr_init -- */
 
@@ -97,8 +100,10 @@ void sr_handlepacket(struct sr_instance* sr,
   }
   else if(ethertype(packet) == ethertype_ip)
   {
+    printf("CHECKING FOR NAT\n");
     if(sr->nat_enabled == 1)
     {
+      printf("FORWARDED TO NAT\n");
       nat_handlepacket(sr, packet, len, interface);
     }
     else
