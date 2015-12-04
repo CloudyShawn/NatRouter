@@ -455,15 +455,29 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
 
   if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_tcp)
   {
-    sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-    mapping = sr_nat_lookup_external(sr->nat, icmp_hdr->icmp_op1, nat_mapping_icmp);
+    sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
 
-    if(mapping == NULL) {
+    mapping = sr_nat_lookup_external(sr->nat, tcp_hdr->tcp_dst, nat_mapping_tcp);
+    if(mapping == NULL)
+    {
+        /* DROP PACKET FOR NOW */
+        /* sr_handle_ip_packet(sr, packet, len, interface); */
       if isFlagType(tcp_hdr, TCP_SYN) {
         
       }
+    
+    struct sr_nat_connection *conn = nat_connection_lookup(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
+    
+    if(conn == NULL)
+    {
+        /* DON'T DROP PACKET FOR NOW, CHANGE STATE/CREATE CONN */
     }
-  }
+
+    sr_nat_apply_mapping_external(mapping, packet, len);
+
+    sr_forward_ip_packet(sr, packet, len, interface);
+        return;
+    }
   else if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
   {
     sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + 1);
@@ -482,8 +496,8 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
   }
   else
   {
-    printf("Dropping unknown IP packet (possibly UDP)\n");
-    sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
+    printf("Dropping unknown IP packet\n");
+    /*sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);*/
     return;
   }
 }
@@ -602,7 +616,8 @@ struct sr_nat_connection *nat_connection_lookup(struct sr_nat *nat, struct sr_na
 }
 
 
-int isFlag(sr_tcp_hdr_t *tcp_hdr) {
+int isFlag(sr_tcp_hdr_t *tcp_hdr)
+{
   if (tcp_hdr->tcp_flags & TCP_FIN || tcp_hdr->tcp_flags & TCP_SYN ||
       tcp_hdr->tcp_flags & TCP_RST || tcp_hdr->tcp_flags & TCP_PSH ||
       tcp_hdr->tcp_flags & TCP_ACK || tcp_hdr->tcp_flags & TCP_URG ||
