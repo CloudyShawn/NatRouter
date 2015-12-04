@@ -481,7 +481,7 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
         mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, tcp_hdr->tcp_src, nat_mapping_tcp);
         if (mapping != NULL)
         {
-          break;
+          return;
         }
       }
       //send port unreachable
@@ -536,7 +536,7 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
           mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, tcp_hdr->tcp_src, nat_mapping_tcp);
         if (mapping != NULL)
         {
-          break;
+          return;
         }
       }
       //send port unreachable
