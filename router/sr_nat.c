@@ -595,8 +595,7 @@ struct sr_nat_connection *nat_connection_lookup(struct sr_nat *nat, struct sr_na
 }
 
 
-int isFlag(struct sr_tcp_hdr_t *tcp_hdr) {
-  //not sure if we mutex lock these????
+int isFlag(sr_tcp_hdr_t *tcp_hdr) {
   if (tcp_hdr->tcp_flags & TCP_FIN) {
     return 1;
   }
@@ -632,66 +631,14 @@ int isFlag(struct sr_tcp_hdr_t *tcp_hdr) {
   return 0;
 }
 
-  int isFlagType(struct sr_tcp_hdr_t *tcp_hdr, char flag) {
-    // not sure if mutex lock needed???
-  switch (flag){
-    case 'F':
-      if (tcp_hdr->tcp_flags & TCP_FIN) {
-        return 1;
-      }
-      else {
-        return 0;
-      }
-    case 'S':
-      if (tcp_hdr->tcp_flags & TCP_SYN) {
-        return 1;
-      }
-      else {
-        return 0;
-      }
-    case 'R':
-      if (tcp_hdr->tcp_flags & TCP_RST) {
-        return 1;
-      }
-      else {
-        return 0;
-      }
-    case 'P':
-      if (tcp_hdr->tcp_flags & TCP_PSH) {
-        return 1;
-      }
-      else {
-        return 0;
-      }
-    case 'A':
-      if (tcp_hdr->tcp_flags & TCP_ACK) {
-        return 1;
-      }
-      else {
-        return 0;
-      }
-    case 'U':
-      if (tcp_hdr->tcp_flags & TCP_URG) {
-        return 1;
-      }
-      else {
-        return 0;
-      }
-    case 'E':
-      if (tcp_hdr->tcp_flags & TCP_ECE) {
-        return 1;
-      }
-      else {
-        return 0;
-      }
-    case 'C':
-      if (tcp_hdr->tcp_flags & TCP_CWR) {
-        return 1;
-      }
-      else {
-        return 0;
-      }
-      default:
-        return 0;
+int isFlagType(sr_tcp_hdr_t *tcp_hdr, uint8_t flag)
+{
+  if (tcp_hdr->tcp_flags & flag)
+  {
+    return 1;
+  }
+  else
+  {
+    return 0;
   }
 }

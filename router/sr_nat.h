@@ -112,7 +112,7 @@ struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr
 void sr_nat_apply_mapping_internal(struct sr_nat_mapping *, uint8_t *, unsigned int);
 void sr_nat_apply_mapping_external(struct sr_nat_mapping *, uint8_t *, unsigned int);
 
-int isFlag(struct sr_tcp_hdr_t *tcp_hdr);
-int isFlagType(struct sr_tcp_hdr_t *tcp_hdr, char flag);
+int isFlag(sr_tcp_hdr_t *tcp_hdr);
+int isFlagType(sr_tcp_hdr_t *tcp_hdr, uint8_t flag);
 
 #endif
