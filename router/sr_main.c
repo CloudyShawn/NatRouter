@@ -49,6 +49,7 @@ extern char* optarg;
 #define DEFAULT_ICMP_TIMEOUT 60
 #define DEFAULT_TCP_EST_TIMEOUT 7440
 #define DEFAULT_TCP_TRAN_TIMEOUT 300
+#define DEFAULT_TCP_UNSOLICITED_TIMEOUT 6
 
 static void usage(char* );
 static void sr_init_instance(struct sr_instance* );
@@ -73,6 +74,7 @@ int main(int argc, char **argv)
     unsigned int icmp_timeout = DEFAULT_ICMP_TIMEOUT;
     unsigned int tcp_est_timeout = DEFAULT_TCP_EST_TIMEOUT;
     unsigned int tcp_tran_timeout = DEFAULT_TCP_TRAN_TIMEOUT;
+    unsigned int tcp_unsolicited_timeout = DEFAULT_TCP_UNSOLICITED_TIMEOUT;
     char *logfile = 0;
     struct sr_instance sr;
 

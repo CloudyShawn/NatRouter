@@ -443,7 +443,109 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
 void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
                          unsigned int len, char *interface)
 {
-  /*sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));*/
+  printf("IP HEADER\n");
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+
+  printf("CHECKSUM\n");
+  if(cksum(ip_hdr, sizeof(sr_ip_hdr_t)) != 0xffff)
+  {
+    printf("IP checksum invalid, packet dropped\n");
+    return;
+  }
+
+  struct sr_nat_mapping *mapping = NULL;
+
+  printf("CHECK PROTOCOL\n");
+  if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_tcp)
+  {
+    printf("TCP HEADER\n");
+    sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+
+    /* Toss if destined for the router */
+    printf("CHECK ROUTER\n");
+    if(meant_for_this_router(sr, ip_hdr->ip_dst))
+    {
+      printf("MEANT FOR THIS ROUTER\n");
+      sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
+      return;
+    }
+
+    printf("PERFORM MAPPING LOOKUP\n");
+    mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, tcp_hdr->tcp_src, nat_mapping_tcp);
+
+    if(mapping == NULL)
+    {
+      time_t nowtime = time(NULL);
+
+      while (difftime(time(NULL), nowtime) < tcp_unsolicited_timeout) {
+        mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, tcp_hdr->tcp_src, nat_mapping_tcp);
+        if (mapping != NULL)
+        {
+          break;
+        }
+      }
+      
+    }
+
+    /* CHECK/ADD CONN */
+    printf("GET CONN\n");
+    struct sr_nat_connection *conn = nat_connection_lookup(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
+    if(conn == NULL)
+    {
+      printf("CREATE CONN\n");
+      conn = sr_nat_insert_connection(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
+    }
+
+    /* FIX CONN STATE DATA ACCORDING TO PACKET FLAGS */
+
+    /* REWRITE IP/TCP header */
+    printf("APPLY MAPPING\n");
+    sr_nat_apply_mapping_internal(mapping, packet);
+
+    /* SEND FUCKING PACKET USING sr_forward_ip_packet() */
+    printf("FORWARDING\n");
+    sr_forward_ip_packet(sr, packet, len, interface);
+  }
+  else if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
+  {
+    printf("ICMP HEADER\n");
+    sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+
+    /* Reply if internal icmp echo requested */
+    printf("CHECKING THIS ROUTER\n");
+    /*if(meant_for_this_router(sr, ip_hdr->ip_dst))*/
+    if(ip_hdr->ip_dst == sr_get_interface(sr, interface)->ip)
+    {
+      printf("MEANT FOR THIS ROUTER\n");
+      sr_handle_icmp_packet(sr, packet, len, interface);
+    }
+    /* Needs to be translated and forwarded */
+    else
+    {
+      printf("LOOKUP MAPP\n");
+      mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, icmp_hdr->icmp_op1, nat_mapping_icmp);
+
+      if(mapping == NULL)
+      {
+        printf("CREATE MAPPING\n");
+        mapping = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, sr_get_interface(sr, "eth2")->ip, icmp_hdr->icmp_op1, nat_mapping_tcp);
+      }
+
+      /* NO CONN INFO NEEDED */
+      /* FIX HEADER AND SEND THE FUCK OUT USING sr_forward_ip_packet() */
+      printf("APPLY MAPP\n");
+      sr_nat_apply_mapping_internal(mapping, packet);
+
+      printf("SEND SHIT\n");
+      sr_forward_ip_packet(sr, packet, len, interface);
+    }
+  }
+  else /* UDP packet, drop */
+  {
+    printf("UDP packet inbound, dropping.");
+    sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
+    return;
+  }
 }
 
 struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr_nat_mapping *mapping,
