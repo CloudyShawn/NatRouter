@@ -459,7 +459,9 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
     mapping = sr_nat_lookup_external(sr->nat, icmp_hdr->icmp_op1, nat_mapping_icmp);
 
     if(mapping == NULL) {
-      //do timeout
+      if isFlagType(tcp_hdr, TCP_SYN) {
+        
+      }
     }
   }
   else if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
