@@ -484,7 +484,10 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
           break;
         }
       }
-      
+      //send port unreachable
+      if(mapping == NULL) {
+        sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
+      } 
     }
 
     /* CHECK/ADD CONN */
@@ -527,8 +530,19 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
 
       if(mapping == NULL)
       {
-        printf("CREATE MAPPING\n");
-        mapping = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, sr_get_interface(sr, "eth2")->ip, icmp_hdr->icmp_op1, nat_mapping_tcp);
+        time_t nowtime = time(NULL);
+
+        while (difftime(time(NULL), nowtime) < tcp_unsolicited_timeout) {
+          mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, tcp_hdr->tcp_src, nat_mapping_tcp);
+        if (mapping != NULL)
+        {
+          break;
+        }
+      }
+      //send port unreachable
+      if(mapping == NULL) {
+        sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
+      } 
       }
 
       /* NO CONN INFO NEEDED */
