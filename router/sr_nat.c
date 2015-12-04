@@ -455,7 +455,12 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
 
   if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_tcp)
   {
+    sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+    mapping = sr_nat_lookup_external(sr->nat, icmp_hdr->icmp_op1, nat_mapping_icmp);
 
+    if(mapping == NULL) {
+      //do timeout
+    }
   }
   else if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
   {
