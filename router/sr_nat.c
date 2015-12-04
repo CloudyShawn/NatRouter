@@ -561,7 +561,7 @@ struct sr_nat_connection *nat_connection_lookup(struct sr_nat *nat, struct sr_na
 
 
 int isFlag(struct sr_tcp_hdr_t *tcp_hdr) {
-
+  //not sure if we mutex lock these????
   if (tcp_hdr->tcp_flags & TCP_FIN) {
     return 1;
   }
@@ -597,8 +597,8 @@ int isFlag(struct sr_tcp_hdr_t *tcp_hdr) {
   return 0;
 }
 
-int isFlagType(struct sr_tcp_hdr_t *tcp_hdr, char flag) {
-
+  int isFlagType(struct sr_tcp_hdr_t *tcp_hdr, char flag) {
+    // not sure if mutex lock needed???
   switch (flag){
     case 'F':
       if (tcp_hdr->tcp_flags & TCP_FIN) {
