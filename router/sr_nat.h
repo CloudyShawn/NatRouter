@@ -133,6 +133,8 @@ struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr
 void sr_nat_apply_mapping_internal(struct sr_nat_mapping *, uint8_t *, unsigned int);
 void sr_nat_apply_mapping_external(struct sr_nat_mapping *, uint8_t *, unsigned int);
 
+update_icmp_mapping(struct sr_nat *nat, struct sr_nat_mapping *mapping);
+
 int is_flag(sr_tcp_hdr_t *tcp_hdr);
 int is_flag_type(sr_tcp_hdr_t *tcp_hdr, uint8_t flag);
 

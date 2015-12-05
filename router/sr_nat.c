@@ -461,7 +461,7 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 
     /* Toss if destined for the router */
-    if(ip_hdr->ip_dst == sr_get_interface(sr, interface)->ip)
+    if(ip_hdr->ip_dst == sr_get_interface(sr, interface)->ip || ip_hdr->ip_dst == sr_get_interface(sr, "eth2")->ip)
     {
       sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
       return;
@@ -495,7 +495,7 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
     sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 
     /* Reply if internal icmp echo requested */
-    if(ip_hdr->ip_dst == sr_get_interface(sr, interface)->ip)
+    if(ip_hdr->ip_dst == sr_get_interface(sr, interface)->ip || ip_hdr->ip_dst == sr_get_interface(sr, "eth2")->ip)
     {
       sr_handle_icmp_packet(sr, packet, len, interface);
     }
@@ -507,6 +507,10 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
       if(mapping == NULL)
       {
         mapping = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, sr_get_interface(sr, "eth2")->ip, icmp_hdr->icmp_op1, nat_mapping_icmp);
+      }
+      else
+      {
+        update_icmp_mapping(sr->nat, mapping);
       }
 
       /* NO CONN INFO NEEDED */
@@ -583,6 +587,10 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
         sr_handle_icmp_packet(sr, packet, len, interface);
         return;
     }
+    else
+    {
+      update_icmp_mapping(sr->nat, mapping);
+    }
 
     sr_nat_apply_mapping_external(mapping, packet, len);
 
@@ -594,6 +602,22 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
     /*sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);*/
     return;
   }
+}
+
+update_icmp_mapping(struct sr_nat *nat, struct sr_nat_mapping *mapping)
+{
+  pthread_mutex_lock(&(nat->lock));
+
+  struct sr_nat_mapping *curr = nat->mappings;
+  while(curr->type != mapping->type && curr->ip_int != mapping->ip_int &&
+        curr->aux_int != mapping->aux_int)
+  {
+    curr = curr->next;
+  }
+
+  curr->last_updated = time(NULL);
+
+  pthread_mutex_unlock(&(nat->lock));
 }
 
 struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr_nat_mapping *mapping,
