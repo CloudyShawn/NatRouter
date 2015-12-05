@@ -10,9 +10,12 @@
 #include <unistd.h>
 
 /* Initializes the nat */
-int sr_nat_init(struct sr_nat *nat, unsigned int icmp_timeout,
+int sr_nat_init(struct sr_instance *sr, unsigned int icmp_timeout,
                 unsigned int tcp_tran_timeout, unsigned int tcp_est_timeout)
 {
+  assert(sr);
+
+  struct sr_nat *nat = sr->nat;
   assert(nat);
 
   /* Acquire mutex lock */
@@ -26,11 +29,12 @@ int sr_nat_init(struct sr_nat *nat, unsigned int icmp_timeout,
   pthread_attr_setdetachstate(&(nat->thread_attr), PTHREAD_CREATE_JOINABLE);
   pthread_attr_setscope(&(nat->thread_attr), PTHREAD_SCOPE_SYSTEM);
   pthread_attr_setscope(&(nat->thread_attr), PTHREAD_SCOPE_SYSTEM);
-  pthread_create(&(nat->thread), &(nat->thread_attr), sr_nat_timeout, nat);
+  pthread_create(&(nat->thread), &(nat->thread_attr), sr_nat_timeout, sr);
 
   /* CAREFUL MODIFYING CODE ABOVE THIS LINE! */
 
   nat->mappings = NULL;
+  nat->unsol = NULL;
   /* Initialize any variables here */
   nat->icmp_timeout = icmp_timeout;
   nat->tcp_tran_timeout = tcp_tran_timeout;
@@ -67,6 +71,18 @@ int sr_nat_destroy(struct sr_nat *nat)
     cur_mapping = next_mapping;
   }
 
+  struct sr_nat_unsol_syn *curr_unsol = nat->unsol;
+  struct sr_nat_unsol_syn *next_unsol = NULL;
+  while (curr_unsol)
+  {
+    next_unsol = curr_unsol->next;
+
+    free(curr_unsol->packet);
+    free(curr_unsol);
+
+    curr_unsol = next_unsol;
+  }
+
   pthread_kill(nat->thread, SIGKILL);
   return pthread_mutex_destroy(&(nat->lock)) &&
     pthread_mutexattr_destroy(&(nat->attr));
@@ -74,9 +90,10 @@ int sr_nat_destroy(struct sr_nat *nat)
 }
 
 /* Periodic Timout handling */
-void *sr_nat_timeout(void *nat_ptr)
+void *sr_nat_timeout(void *sr_ptr)
 {
-  struct sr_nat *nat = (struct sr_nat *)nat_ptr;
+  struct sr_instance *sr = (struct sr_instance *)sr_ptr;
+  struct sr_nat *nat = sr->nat;
   while (1) {
     sleep(1.0);
     pthread_mutex_lock(&(nat->lock));
@@ -179,6 +196,55 @@ void *sr_nat_timeout(void *nat_ptr)
           free(curr);
           curr = next;
         }
+      }
+    }
+
+    struct sr_nat_unsol_syn *prev_unsol = NULL;
+    struct sr_nat_unsol_syn *curr_unsol = nat->unsol;
+    struct sr_nat_unsol_syn *next_unsol;
+
+    while(curr_unsol)
+    {
+      next_unsol = curr_unsol->next;
+
+      if(difftime(curtime, curr_unsol->time_received) >= 6)
+      {
+        sr_send_icmp_packet(sr, curr_unsol->packet, icmp_type_unreachable, icmp_code_port_unreachable);
+
+        if(prev == NULL)
+        {
+          nat->unsol = next_unsol;
+        }
+        else
+        {
+          prev_unsol->next = next_unsol;
+        }
+
+        free(curr_unsol->packet);
+        free(curr_unsol);
+
+        curr_unsol = next_unsol;
+      }
+      else if(sr_nat_lookup_external(nat, curr_unsol->aux_ext, nat_mapping_tcp))
+      {
+        if(prev == NULL)
+        {
+          nat->unsol = next_unsol;
+        }
+        else
+        {
+          prev_unsol->next = next_unsol;
+        }
+
+        free(curr_unsol->packet);
+        free(curr_unsol);
+
+        curr_unsol = next_unsol;
+      }
+      else
+      {
+        prev_unsol = curr_unsol;
+        curr_unsol = next_unsol;
       }
     }
 
@@ -319,6 +385,23 @@ void insert_mapping(struct sr_nat *nat, struct sr_nat_mapping *mapping)
   }
 }
 
+void sr_nat_insert_unsol(struct sr_nat *nat, uint8_t *packet, uint16_t aux_ext,
+                         unsigned int len)
+{
+  pthread_mutex_lock(&(nat->lock));
+
+  struct sr_nat_unsol_syn *new_unsol = malloc(sizeof(struct sr_nat_unsol_syn));
+  new_unsol->time_received = time(NULL);
+  new_unsol->aux_ext = aux_ext;
+  new_unsol->packet = malloc(len);
+  memcpy(new_unsol->packet, packet, len);
+
+  new_unsol->next = nat->unsol;
+  nat->unsol = new_unsol;
+
+  pthread_mutex_unlock(&(nat->lock));
+}
+
 void nat_handlepacket(struct sr_instance *sr, uint8_t *packet,
                       unsigned int len, char *interface)
 {
@@ -330,12 +413,10 @@ void nat_handlepacket(struct sr_instance *sr, uint8_t *packet,
 
   if(strcmp("eth1", interface) == 0)
   {
-    printf("INTERNAL PACKET\n");
     nat_handle_internal(sr, packet, len, interface);
   }
   else
   {
-    printf("EXTERNAL PACKET\n");
     nat_handle_external(sr, packet, len, interface);
   }
 }
@@ -343,10 +424,8 @@ void nat_handlepacket(struct sr_instance *sr, uint8_t *packet,
 void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
                          unsigned int len, char *interface)
 {
-  printf("IP HEADER\n");
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
 
-  printf("CHECKSUM\n");
   if(cksum(ip_hdr, sizeof(sr_ip_hdr_t)) != 0xffff)
   {
     printf("IP checksum invalid, packet dropped\n");
@@ -355,80 +434,70 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
 
   struct sr_nat_mapping *mapping = NULL;
 
-  printf("CHECK PROTOCOL\n");
   if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_tcp)
   {
-    printf("TCP HEADER\n");
+    printf("TCP PACKET INTERNAL\n");
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 
     /* Toss if destined for the router */
-    printf("CHECK ROUTER\n");
     if(meant_for_this_router(sr, ip_hdr->ip_dst))
     {
-      printf("MEANT FOR THIS ROUTER\n");
+      printf("MEANT FOR ROUTER\n");
       sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
       return;
     }
 
-    printf("PERFORM MAPPING LOOKUP\n");
     mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, tcp_hdr->tcp_src, nat_mapping_tcp);
 
     if(mapping == NULL)
     {
-      printf("CREATE NEW MAPPING\n");
+      printf("CREATING MAPPING\n");
       mapping = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, sr_get_interface(sr, "eth2")->ip, tcp_hdr->tcp_src, nat_mapping_tcp);
     }
 
+    printf("MAPPING FOUND\n");
     /* CHECK/ADD CONN */
-    printf("GET CONN\n");
     struct sr_nat_connection *conn = nat_connection_lookup(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
     if(conn == NULL)
     {
-      printf("CREATE CONN\n");
+      printf("CREATING CONNECTION\n");
       conn = sr_nat_insert_connection(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
     }
 
     /* FIX CONN STATE DATA ACCORDING TO PACKET FLAGS */
 
     /* REWRITE IP/TCP header */
-    printf("APPLY MAPPING\n");
+    printf("APPLYING MAPPING\n");
     sr_nat_apply_mapping_internal(mapping, packet, len);
 
     /* SEND FUCKING PACKET USING sr_forward_ip_packet() */
-    printf("FORWARDING\n");
+    printf("FORWARDING PACKET\n");
     sr_forward_ip_packet(sr, packet, len, interface);
   }
   else if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
   {
-    printf("ICMP HEADER\n");
     sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 
     /* Reply if internal icmp echo requested */
-    printf("CHECKING THIS ROUTER\n");
     /*if(meant_for_this_router(sr, ip_hdr->ip_dst))*/
     if(ip_hdr->ip_dst == sr_get_interface(sr, interface)->ip)
     {
-      printf("MEANT FOR THIS ROUTER\n");
       sr_handle_icmp_packet(sr, packet, len, interface);
     }
     /* Needs to be translated and forwarded */
     else
     {
-      printf("LOOKUP MAPP\n");
       mapping = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, icmp_hdr->icmp_op1, nat_mapping_icmp);
 
       if(mapping == NULL)
       {
-        printf("CREATE MAPPING\n");
         mapping = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, sr_get_interface(sr, "eth2")->ip, icmp_hdr->icmp_op1, nat_mapping_icmp);
       }
 
       /* NO CONN INFO NEEDED */
       /* FIX HEADER AND SEND THE FUCK OUT USING sr_forward_ip_packet() */
-      printf("APPLY MAPP\n");
       sr_nat_apply_mapping_internal(mapping, packet, len);
 
-      printf("SEND SHIT\n");
       sr_forward_ip_packet(sr, packet, len, interface);
     }
   }
@@ -460,32 +529,29 @@ void nat_handle_external(struct sr_instance *sr, uint8_t *packet,
     mapping = sr_nat_lookup_external(sr->nat, tcp_hdr->tcp_dst, nat_mapping_tcp);
     if(mapping == NULL)
     {
-        /* DROP PACKET FOR NOW */
-        /* sr_handle_ip_packet(sr, packet, len, interface); */
-      if (isFlagType(tcp_hdr, TCP_SYN) == 1) {
-        time_t timeNow = time(NULL);
-        while (difftime (time(NULL), timeNow) < tcp_unsolicited_timeout) {
-          mapping = sr_nat_lookup_external(sr->nat, tcp_hdr->tcp_dst, nat_mapping_tcp);
-          if (mapping != NULL) {
-            return;
-          }
+        /* CHECK IF SYN */
+        if(is_flag_type(tcp_hdr, TCP_SYN))
+        {
+          /* ADD UNSOL SYN TO LIST */
+          sr_nat_insert_unsol(sr->nat, packet, tcp_hdr->tcp_dst, len);
         }
-        sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
-        // send ICMP unreachable?
-      }
-    
+
+        return;
+    }
+
     struct sr_nat_connection *conn = nat_connection_lookup(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
-    
     if(conn == NULL)
     {
-        /* DON'T DROP PACKET FOR NOW, CHANGE STATE/CREATE CONN */
+        /* CREATE CONN */
+        sr_nat_insert_connection(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
+
+        /* UPDATE CONN */
     }
 
     sr_nat_apply_mapping_external(mapping, packet, len);
 
     sr_forward_ip_packet(sr, packet, len, interface);
-        return;
-    }
+  }
   else if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)
   {
     sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + 1);
@@ -522,14 +588,8 @@ struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr
   new_conn->dst_ip = dst_ip;
   new_conn->dst_port = dst_port;
 
-  struct sr_nat_mapping *curr = nat->mappings;
-  while(curr != mapping)
-  {
-    curr = curr->next;
-  }
-
-  new_conn->next = curr->conns;
-  curr->conns = new_conn;
+  new_conn->next = mapping->conns;
+  mapping->conns = new_conn;
 
   memcpy(new_conn_copy, new_conn, sizeof(struct sr_nat_connection));
 
@@ -556,7 +616,9 @@ void sr_nat_apply_mapping_internal(struct sr_nat_mapping *mapping, uint8_t *pack
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
     tcp_hdr->tcp_src = mapping->aux_ext;
     tcp_hdr->tcp_sum = 0x0000;
-    tcp_hdr->tcp_sum = cksum(tcp_hdr, htons(ip_hdr->ip_len) - ip_hdr->ip_hl);
+    printf("TCP SUM\n");
+    tcp_hdr->tcp_sum = tcp_cksum(packet, len);
+    printf("SUM COMPLETE\n");
   }
   /*recalculate checksum*/
   ip_hdr->ip_sum = 0x0000;
@@ -582,7 +644,7 @@ void sr_nat_apply_mapping_external(struct sr_nat_mapping *mapping, uint8_t *pack
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
     tcp_hdr->tcp_dst = mapping->aux_int;
     tcp_hdr->tcp_sum = 0x0000;
-    tcp_hdr->tcp_sum = cksum(tcp_hdr, ip_hdr->ip_len - ip_hdr->ip_hl);
+    tcp_hdr->tcp_sum = tcp_cksum(packet, len);
   }
   /*recalculate checksum*/
   ip_hdr->ip_sum = 0x0000;
@@ -597,16 +659,9 @@ struct sr_nat_connection *nat_connection_lookup(struct sr_nat *nat, struct sr_na
 {
   pthread_mutex_lock(&(nat->lock));
 
-  struct sr_nat_mapping *curr = nat->mappings;
-  while(curr != mapping)
-  {
-    curr = curr->next;
-  }
-
-  /* handle lookup here, malloc and assign to copy. */
   struct sr_nat_connection *copy = NULL;
 
-  struct sr_nat_connection *connection = curr->conns;
+  struct sr_nat_connection *connection = mapping->conns;
   while(connection)
   {
     if(connection->dst_ip == dst_ip && connection->dst_port == dst_port)
@@ -617,14 +672,15 @@ struct sr_nat_connection *nat_connection_lookup(struct sr_nat *nat, struct sr_na
       pthread_mutex_unlock(&(nat->lock));
       return copy;
     }
+
+    connection = connection->next;
   }
 
   pthread_mutex_unlock(&(nat->lock));
   return copy;
 }
 
-
-int isFlag(sr_tcp_hdr_t *tcp_hdr)
+int is_flag(sr_tcp_hdr_t *tcp_hdr)
 {
   if (tcp_hdr->tcp_flags & TCP_FIN || tcp_hdr->tcp_flags & TCP_SYN ||
       tcp_hdr->tcp_flags & TCP_RST || tcp_hdr->tcp_flags & TCP_PSH ||
@@ -637,7 +693,7 @@ int isFlag(sr_tcp_hdr_t *tcp_hdr)
   return 0;
 }
 
-int isFlagType(sr_tcp_hdr_t *tcp_hdr, uint8_t flag)
+int is_flag_type(sr_tcp_hdr_t *tcp_hdr, uint8_t flag)
 {
   return (tcp_hdr->tcp_flags & flag) > 0;
 }

@@ -56,7 +56,7 @@ void sr_init(struct sr_instance* sr, int nat_enabled, unsigned int icmp_timeout,
     {
       printf("ENABLING NAT\n");
       sr->nat = malloc(sizeof(struct sr_nat));
-      sr_nat_init(sr->nat, icmp_timeout, tcp_tran_timeout, tcp_est_timeout);
+      sr_nat_init(sr, icmp_timeout, tcp_tran_timeout, tcp_est_timeout);
     }
 } /* -- sr_init -- */
 

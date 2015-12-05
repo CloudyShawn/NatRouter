@@ -144,6 +144,16 @@ struct sr_tcp_hdr
 } __attribute__ ((packed)) ;
 typedef struct sr_tcp_hdr sr_tcp_hdr_t;
 
+/* Structure of TCP SUDO header for calculating checksum */
+struct sr_ip_sudo_hdr
+{
+  uint32_t ip_src;  /*src ip number*/
+  uint32_t ip_dst;  /*dest ip number*/
+  uint8_t ip_zero;  /*left zero*/
+  uint8_t ip_p;     /*ip protocol*/
+  uint16_t tcp_len; /*length of tcp header + data length*/
+} __attribute__ ((packed)) ;
+typedef struct sr_ip_sudo_hdr sr_ip_sudo_hdr_t;
 
 /*
  * Structure of an internet header, naked of options.

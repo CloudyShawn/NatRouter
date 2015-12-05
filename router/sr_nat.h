@@ -35,7 +35,8 @@ typedef enum
   state_closed
 } sr_tcp_conn_state;
 
-struct sr_nat_connection {
+struct sr_nat_connection
+{
   /* add TCP connection state data members here */
   sr_tcp_conn_state state;
   time_t last_updated;
@@ -43,6 +44,15 @@ struct sr_nat_connection {
   uint16_t dst_port;
 
   struct sr_nat_connection *next;
+};
+
+struct sr_nat_unsol_syn
+{
+  #define UNSOL_TIMEOUT 6
+  time_t time_received;
+  uint16_t aux_ext;
+  uint8_t *packet;
+  struct sr_nat_unsol_syn *next;
 };
 
 struct sr_nat_mapping {
@@ -59,6 +69,7 @@ struct sr_nat_mapping {
 struct sr_nat {
   /* add any fields here */
   struct sr_nat_mapping *mappings;
+  struct sr_nat_unsol_syn *unsol;
   unsigned int icmp_timeout;
   unsigned int tcp_tran_timeout;
   unsigned int tcp_est_timeout;
@@ -71,10 +82,10 @@ struct sr_nat {
 };
 
 
-int sr_nat_init(struct sr_nat *nat_ptr, unsigned int icmp_timeout,
+int sr_nat_init(struct sr_instance *sr, unsigned int icmp_timeout,
                 unsigned int tcp_tran_timeout, unsigned int tcp_est_timeout);     /* Initializes the nat */
 int   sr_nat_destroy(struct sr_nat *nat);  /* Destroys the nat (free memory) */
-void *sr_nat_timeout(void *nat_ptr);  /* Periodic Timout */
+void *sr_nat_timeout(void *sr_ptr);  /* Periodic Timout */
 
 /* Get the mapping associated with given external port.
    You must free the returned structure if it is not NULL. */
@@ -90,6 +101,9 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
    You must free the returned structure if it is not NULL. */
 struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   uint32_t ip_int, uint32_t ip_ext, uint16_t aux_int, sr_nat_mapping_type type );
+
+void sr_nat_insert_unsol(struct sr_nat *nat, uint8_t *packet, uint16_t aux_ext,
+                         unsigned int len);
 
 void insert_mapping(struct sr_nat *nat, struct sr_nat_mapping *mapping);
 uint16_t get_available_port(struct sr_nat *nat);
@@ -112,7 +126,7 @@ struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr
 void sr_nat_apply_mapping_internal(struct sr_nat_mapping *, uint8_t *, unsigned int);
 void sr_nat_apply_mapping_external(struct sr_nat_mapping *, uint8_t *, unsigned int);
 
-int isFlag(sr_tcp_hdr_t *tcp_hdr);
-int isFlagType(sr_tcp_hdr_t *tcp_hdr, uint8_t flag);
+int is_flag(sr_tcp_hdr_t *tcp_hdr);
+int is_flag_type(sr_tcp_hdr_t *tcp_hdr, uint8_t flag);
 
 #endif

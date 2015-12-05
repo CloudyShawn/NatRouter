@@ -18,6 +18,35 @@ uint16_t cksum (const void *_data, int len) {
   return sum ? sum : 0xffff;
 }
 
+uint16_t tcp_cksum(uint8_t *packet, unsigned int len)
+{
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+
+  /*uint16_t tcp_len = len - sizeof(sr_ethernet_hdr_t) - sizeof(sr_ip_hdr_t) + sizeof(sr_ip_sudo_hdr_t);*/
+  uint16_t tcp_len = ntohs(ip_hdr->ip_len) - sizeof(sr_ip_hdr_t);
+  printf("%d, %d, %lu, %d\n", tcp_len, ntohs(ip_hdr->ip_len), sizeof(sr_ip_hdr_t), len);
+  unsigned int sudo_len = sizeof(sr_ip_sudo_hdr_t) + tcp_len;
+
+  uint8_t *cksum_packet = malloc(sudo_len);
+  memset(cksum_packet, 0, sudo_len);
+
+  sr_ip_sudo_hdr_t *sudo_hdr = (sr_ip_sudo_hdr_t *)cksum_packet;
+  sudo_hdr->ip_src = ip_hdr->ip_src;
+  sudo_hdr->ip_dst = ip_hdr->ip_dst;
+  sudo_hdr->ip_zero = 0;
+  sudo_hdr->ip_p = ip_hdr->ip_p;
+  sudo_hdr->tcp_len = htons(tcp_len);
+
+  sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(ip_hdr + 1);
+  sr_tcp_hdr_t *new_tcp_hdr = (sr_tcp_hdr_t *)(cksum_packet + sizeof(sr_ip_sudo_hdr_t));
+  memcpy(new_tcp_hdr, tcp_hdr, tcp_len);
+
+  uint16_t sum = cksum(cksum_packet, sudo_len);
+
+  free(cksum_packet);
+
+  return sum;
+}
 
 uint16_t ethertype(uint8_t *buf) {
   sr_ethernet_hdr_t *ehdr = (sr_ethernet_hdr_t *)buf;
