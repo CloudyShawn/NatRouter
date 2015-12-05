@@ -347,20 +347,20 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 ************************************************************************/
 uint16_t get_available_port(struct sr_nat *nat)
 {
-  if(nat->mappings == NULL || MIN_PORT_NUMBER < nat->mappings->aux_ext)
+  if(nat->mappings == NULL || MIN_PORT_NUMBER < ntohs(nat->mappings->aux_ext))
   {
-    return (uint16_t)MIN_PORT_NUMBER;
+    return (uint16_t)htons(MIN_PORT_NUMBER);
   }
   else
   {
     struct sr_nat_mapping *curr = nat->mappings;
 
-    while (curr->next != NULL && curr->next->aux_ext - curr->aux_ext == 1)
+    while (curr->next != NULL && ntohs(curr->next->aux_ext) - ntohs(curr->aux_ext) == 1)
     {
       curr = curr->next;
     }
 
-    return curr->aux_ext + 1;
+    return htons(ntohs(curr->aux_ext) + 1);
   }
 }
 
