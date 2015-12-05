@@ -436,13 +436,11 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
 
   if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_tcp)
   {
-    printf("TCP PACKET INTERNAL\n");
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 
     /* Toss if destined for the router */
     if(meant_for_this_router(sr, ip_hdr->ip_dst))
     {
-      printf("MEANT FOR ROUTER\n");
       sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
       return;
     }
@@ -451,27 +449,22 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
 
     if(mapping == NULL)
     {
-      printf("CREATING MAPPING\n");
       mapping = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, sr_get_interface(sr, "eth2")->ip, tcp_hdr->tcp_src, nat_mapping_tcp);
     }
 
-    printf("MAPPING FOUND\n");
     /* CHECK/ADD CONN */
     struct sr_nat_connection *conn = nat_connection_lookup(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
     if(conn == NULL)
     {
-      printf("CREATING CONNECTION\n");
       conn = sr_nat_insert_connection(sr->nat, mapping, ip_hdr->ip_dst, tcp_hdr->tcp_dst);
     }
 
     /* FIX CONN STATE DATA ACCORDING TO PACKET FLAGS */
 
     /* REWRITE IP/TCP header */
-    printf("APPLYING MAPPING\n");
     sr_nat_apply_mapping_internal(mapping, packet, len);
 
     /* SEND FUCKING PACKET USING sr_forward_ip_packet() */
-    printf("FORWARDING PACKET\n");
     sr_forward_ip_packet(sr, packet, len, interface);
   }
   else if(ip_protocol((uint8_t *)ip_hdr) == ip_protocol_icmp)

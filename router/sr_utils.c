@@ -24,7 +24,6 @@ uint16_t tcp_cksum(uint8_t *packet, unsigned int len)
 
   /*uint16_t tcp_len = len - sizeof(sr_ethernet_hdr_t) - sizeof(sr_ip_hdr_t) + sizeof(sr_ip_sudo_hdr_t);*/
   uint16_t tcp_len = ntohs(ip_hdr->ip_len) - sizeof(sr_ip_hdr_t);
-  printf("%d, %d, %lu, %d\n", tcp_len, ntohs(ip_hdr->ip_len), sizeof(sr_ip_hdr_t), len);
   unsigned int sudo_len = sizeof(sr_ip_sudo_hdr_t) + tcp_len;
 
   uint8_t *cksum_packet = malloc(sudo_len);
