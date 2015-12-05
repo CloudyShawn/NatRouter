@@ -756,8 +756,7 @@ int update_conn(struct sr_nat_mapping *mapping, struct sr_nat_connection *connec
       }
       break;
     case state_syn_sent:
-      if(is_flag_type(tcp_hdr, TCP_SYN) && is_flag_type(tcp_hdr, TCP_ACK) &&
-         incoming == nat_external)
+      if(is_flag_type(tcp_hdr, TCP_SYN) && is_flag_type(tcp_hdr, TCP_ACK) && incoming == nat_external)
       {
         conn->state = state_estab;
         return 0;
@@ -769,7 +768,7 @@ int update_conn(struct sr_nat_mapping *mapping, struct sr_nat_connection *connec
       }
       break;
     case state_syn_rcvd:
-      if(is_flag_type(tcp_hdr, TCP_ACK))
+      if(is_flag_type(tcp_hdr, TCP_ACK) && incoming == nat_external)
       {
         conn->state = state_estab;
         return 0;
@@ -779,9 +778,17 @@ int update_conn(struct sr_nat_mapping *mapping, struct sr_nat_connection *connec
         conn->state = state_fin_wait_1;
         return 0;
       }
+      if (is_flag_type(tcp_hdr, TCP_ACK) && incoming == nat_internal)
+      {
+        return 0;
+      }
       break;
     case state_estab:
-      if(is_flag_type(tcp_hdr, TCP_ACK))
+      if(is_flag_type(tcp_hdr, TCP_ACK) && incoming == nat_external)
+      {
+        return 0;
+      }
+      if(is_flag_type(tcp_hdr, TCP_ACK) && incoming == nat_internal)
       {
         return 0;
       }
@@ -801,16 +808,63 @@ int update_conn(struct sr_nat_mapping *mapping, struct sr_nat_connection *connec
       {
         return 0;
       }
+      if (is_flag_type(tcp_hdr, TCP_ACK) && incoming == nat_external)
+      {
+        conn->state = state_fin_wait_2;
+        return 0;
+      }
+      if (is_flag_type(tcp_hdr, TCP_FIN) && incoming == nat_external)
+      {
+        conn->state = state_closing;
+        return 0;
+      }
       break;
     case state_fin_wait_2:
+      if (is_flag_type(tcp_hdr, TCP_FIN) && incoming == nat_external)
+      {
+        conn->state = state_time_wait;
+        return 0;
+      }
       break;
     case state_closing:
+      if (is_flag_type(tcp_hdr, TCP_ACK) && incoming == nat_internal)
+      {
+        return 0;
+      }
+      if (is_flag_type(tcp_hdr, TCP_ACK) && incoming == nat_external)
+      {
+        conn->state = state_time_wait;
+        return 0;
+      }
       break;
     case state_close_wait:
+      if (is_flag_type(tcp_hdr, TCP_ACK) && incoming = nat_internal)
+      {
+        return 0;
+      }
+      if (is_flag_type(tcp_hdr, TCP_FIN) && incoming == nat_internal)
+      {
+        conn->state = state_last_ack;
+        return 0;
+      }
       break;
     case state_last_ack:
+      if (is_flag_type(tcp_hdr, TCP_FIN) && incoming == nat_internal)
+      {
+        return 0;
+      }
+      if (is_flag_type(tcp_hdr, TCP_ACK) && incoming == nat_external)
+      {
+        //ASK SHAWN ABOUT RECEIVING ACK OF FIN AND CHANGING TO CLOSED
+        return 0;
+      }
       break;
     case state_time_wait:
+      if (is_flag_type(tcp_hdr, TCP_ACK) && incoming == nat_internal)
+      {
+        return 0;
+      }
+      // ASK SHAWN ABOUT TIMEOUT=2MSL
       break;
   }
 
