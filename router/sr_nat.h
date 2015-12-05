@@ -22,6 +22,13 @@ typedef enum {
 
 typedef enum
 {
+  nat_internal,
+  nat_external
+} sr_nat_incoming;
+
+typedef enum
+{
+  state_closed_1,
   state_listen,
   state_syn_sent,
   state_syn_rcvd,
@@ -32,7 +39,7 @@ typedef enum
   state_close_wait,
   state_last_ack,
   state_time_wait,
-  state_closed
+  state_closed_2
 } sr_tcp_conn_state;
 
 struct sr_nat_connection
@@ -128,5 +135,7 @@ void sr_nat_apply_mapping_external(struct sr_nat_mapping *, uint8_t *, unsigned 
 
 int is_flag(sr_tcp_hdr_t *tcp_hdr);
 int is_flag_type(sr_tcp_hdr_t *tcp_hdr, uint8_t flag);
+
+int update_conn(struct sr_nat_connection *conn, sr_tcp_hdr_t *tcp_hdr);
 
 #endif

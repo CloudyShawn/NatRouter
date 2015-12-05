@@ -175,7 +175,8 @@ void *sr_nat_timeout(void *sr_ptr)
               prev_conn = curr_conn;
             }
           }
-          else if(difftime(curtime, curr_conn->last_updated) >= nat->tcp_tran_timeout)
+          else if(difftime(curtime, curr_conn->last_updated) >= nat->tcp_tran_timeout ||
+                  curr_conn->state == state_closed_2)
           {
             if(prev == NULL)
             {
@@ -460,7 +461,7 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
     sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 
     /* Toss if destined for the router */
-    if(meant_for_this_router(sr, ip_hdr->ip_dst))
+    if(ip_hdr->ip_dst == sr_get_interface(sr, interface)->ip)
     {
       sr_send_icmp_packet(sr, packet, icmp_type_unreachable, icmp_code_port_unreachable);
       return;
@@ -494,7 +495,6 @@ void nat_handle_internal(struct sr_instance *sr, uint8_t *packet,
     sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 
     /* Reply if internal icmp echo requested */
-    /*if(meant_for_this_router(sr, ip_hdr->ip_dst))*/
     if(ip_hdr->ip_dst == sr_get_interface(sr, interface)->ip)
     {
       sr_handle_icmp_packet(sr, packet, len, interface);
@@ -614,19 +614,13 @@ struct sr_nat_connection *sr_nat_insert_connection(struct sr_nat *nat, struct sr
   struct sr_nat_connection *new_conn = malloc(sizeof(struct sr_nat_connection));
   memset(new_conn, 0, sizeof(struct sr_nat_connection));
   struct sr_nat_connection *new_conn_copy = malloc(sizeof(struct sr_nat_connection));
-  new_conn->state = state_closed;
+  new_conn->state = state_closed_1;
   new_conn->last_updated = time(NULL);
   new_conn->dst_ip = dst_ip;
   new_conn->dst_port = dst_port;
 
-    new_conn->next = NULL;
-    curr->conns = new_conn;
-  /*
-  else
-  {
-    new_conn->next = curr->conns;
-    curr->conns = new_conn;
-  }*/
+  new_conn->next = curr->conns;
+  curr->conns = new_conn;
 
   memcpy(new_conn_copy, new_conn, sizeof(struct sr_nat_connection));
 
@@ -731,4 +725,94 @@ int is_flag(sr_tcp_hdr_t *tcp_hdr)
 int is_flag_type(sr_tcp_hdr_t *tcp_hdr, uint8_t flag)
 {
   return (tcp_hdr->tcp_flags & flag) > 0;
+}
+
+/* Return 1 if can not update and packet needs to be dropped */
+int update_conn(struct sr_nat_mapping *mapping, struct sr_nat_connection *connection,
+                sr_tcp_hdr_t *tcp_hdr, sr_nat_incoming incoming)
+{
+  struct sr_nat_connection *conn = mapping->conns;
+
+  while(conn->state != connection->state && conn->dst_port != connection->dst_port)
+  {
+    conn = conn->next;
+  }
+
+  conn->last_updated = time(NULL);
+
+  if(is_flag_type(tcp_hdr, TCP_RST))
+  {
+    conn->state = state_closed_2;
+    return 0;
+  }
+
+  switch(conn->state)
+  {
+    case state_closed_1:
+      if(is_flag_type(tcp_hdr, TCP_SYN) && incoming == nat_internal)
+      {
+        conn->state = state_syn_sent;
+        return 0;
+      }
+      break;
+    case state_syn_sent:
+      if(is_flag_type(tcp_hdr, TCP_SYN) && is_flag_type(tcp_hdr, TCP_ACK) &&
+         incoming == nat_external)
+      {
+        conn->state = state_estab;
+        return 0;
+      }
+      if(is_flag_type(tcp_hdr, TCP_SYN) && incoming == nat_external)
+      {
+        conn->state = state_syn_rcvd;
+        return 0;
+      }
+      break;
+    case state_syn_rcvd:
+      if(is_flag_type(tcp_hdr, TCP_ACK))
+      {
+        conn->state = state_estab;
+        return 0;
+      }
+      if(is_flag_type(tcp_hdr, TCP_FIN) && incoming == nat_internal)
+      {
+        conn->state = state_fin_wait_1;
+        return 0;
+      }
+      break;
+    case state_estab:
+      if(is_flag_type(tcp_hdr, TCP_ACK))
+      {
+        return 0;
+      }
+      if(is_flag_type(tcp_hdr, TCP_FIN) && incoming == nat_internal)
+      {
+        conn->state = state_fin_wait_1;
+        return 0;
+      }
+      if(is_flag_type(tcp_hdr, TCP_FIN) && incoming == nat_external)
+      {
+        conn->state = state_close_wait;
+        return 0;
+      }
+      break;
+    case state_fin_wait_1:
+      if(is_flag_type(tcp_hdr, TCP_FIN) && incoming == nat_internal)
+      {
+        return 0;
+      }
+      break;
+    case state_fin_wait_2:
+      break;
+    case state_closing:
+      break;
+    case state_close_wait:
+      break;
+    case state_last_ack:
+      break;
+    case state_time_wait:
+      break;
+  }
+
+  return 1;
 }

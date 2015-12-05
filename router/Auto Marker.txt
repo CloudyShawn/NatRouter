@@ -23,5 +23,5 @@ TCPUnsolicitedSyn2-r1, 0
 TCPUnsolicitedSyn2-r2, 1
 TCPUnsolicitedSyn3-r1, 0
 TCPUnsolicitedSyn3-r2, 0
-total_fscore, 14
-scaled_score, 43.0
+total_fscore, 15
+scaled_score, 46.0
