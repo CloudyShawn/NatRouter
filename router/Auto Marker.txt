@@ -11,7 +11,7 @@ TCP-Traffic-2-r1, 1
 TCP-Traffic-2-r2, 1
 ICMPIndep-r1, 1
 ICMPIndep-r2, 1
-TCPEndpointIndependent-r1, 0
+TCPEndpointIndependent-r1, 1
 TCPEndpointIndependent-r2, 1
 TCPEndpointIndependentFiltering-r1, 0
 TCPEndpointIndependentFiltering-r2, 0
